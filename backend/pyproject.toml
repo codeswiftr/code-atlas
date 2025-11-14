@@ -1,0 +1,48 @@
+[project]
+name = "code-atlas"
+version = "0.1.0"
+description = "Pipeline that converts Claude Code sessions into a searchable knowledge graph."
+readme = "README.md"
+authors = [
+    { name = "Bogdan Veliscu", email = "bogdan.veliscu@outlook.com" }
+]
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "anthropic>=0.30.0",
+    "httpx>=0.26.0",
+    "pathspec>=0.12.1",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.12.0",
+    "rich>=14.0.0",
+    "redis>=5.0.0",
+    "typer>=0.12.5",
+]
+
+[project.scripts]
+code-atlas = "code_atlas.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.9.8,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+addopts = "-q --maxfail=1"
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests that require external services (FalkorDB, Redis, etc.)",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.4",
+]
