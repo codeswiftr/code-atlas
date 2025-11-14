@@ -1,0 +1,48 @@
+# Code Atlas Configuration Example
+# Copy this to .code-atlas.toml and customize for your environment
+
+[discovery]
+# Directory containing Claude Code session files
+claude_root = "~/.claude/projects"
+
+# File with ignore patterns (gitignore syntax)
+ignore_file = ".code-atlas-ignore"
+
+# Maximum session file size in MB (skip larger files)
+max_session_size_mb = 50
+
+[extraction]
+# Use LLM for extraction (false = heuristic only)
+use_llm = true
+
+# Claude model to use
+model = "claude-3-5-sonnet-latest"
+
+# Maximum tokens per LLM response
+max_tokens = 1024
+
+# Temperature (0 = deterministic)
+temperature = 0
+
+# Maximum cost per session extraction (USD)
+max_cost_per_session_usd = 0.02
+
+[graph]
+# FalkorDB graph name
+graph_name = "code_atlas"
+
+# Redis/FalkorDB connection URL
+redis_url = "redis://localhost:6379"
+
+[pipeline]
+# Maximum retry attempts for failed sessions
+max_retries = 3
+
+# Base delay for exponential backoff (seconds)
+retry_delay_base = 1.0
+
+# Directory for quarantined failed sessions
+quarantine_dir = ".code-atlas-quarantine"
+
+# Maximum cumulative cost for entire pipeline run (USD)
+max_cumulative_cost_usd = 10.0
