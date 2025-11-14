@@ -19,8 +19,35 @@ app = typer.Typer(help="Utilities for turning Claude sessions into structured kn
 console = Console()
 
 
+def load_settings(config_path: Optional[Path] = None) -> AtlasSettings:
+    """Load settings with priority: --config flag > .code-atlas.toml > env vars > defaults.
+
+    Args:
+        config_path: Explicit config file path from --config flag
+
+    Returns:
+        AtlasSettings instance
+    """
+    # Priority 1: Explicit --config flag
+    if config_path:
+        if not config_path.exists():
+            console.print(f"[red]Config file not found: {config_path}[/]")
+            raise typer.Exit(code=1)
+        return AtlasSettings.from_toml_with_env_override(config_path)
+
+    # Priority 2: .code-atlas.toml in current directory
+    default_config = Path.cwd() / ".code-atlas.toml"
+    if default_config.exists():
+        console.print(f"[dim]Loading config from {default_config}[/]")
+        return AtlasSettings.from_toml_with_env_override(default_config)
+
+    # Priority 3: Environment variables + defaults
+    return AtlasSettings()
+
+
 @app.command("discover")
 def discover_sessions(
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to .code-atlas.toml config file."),
     root: Optional[Path] = typer.Option(None, help="Override Claude projects root."),
     include_project: list[str] = typer.Option(
         None, "--include-project", "-i", help="Project names to include."
@@ -29,7 +56,7 @@ def discover_sessions(
 ) -> None:
     """List discovered sessions."""
 
-    settings = AtlasSettings()
+    settings = load_settings(config)
     discovery = SessionDiscovery(root=root or settings.claude_root, settings=settings)
     filters = SessionFilter(include_projects=set(include_project or []), limit=limit)
 
@@ -47,6 +74,7 @@ def discover_sessions(
 
 @app.command("run")
 def run_pipeline(
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to .code-atlas.toml config file."),
     root: Optional[Path] = typer.Option(None, help="Override Claude projects root."),
     limit: Optional[int] = typer.Option(5, help="Limit number of sessions processed."),
     use_llm: bool = typer.Option(
@@ -64,7 +92,7 @@ def run_pipeline(
 ) -> None:
     """Placeholder pipeline that parses sessions and prints summaries."""
 
-    settings = AtlasSettings()
+    settings = load_settings(config)
     discovery = SessionDiscovery(root=root or settings.claude_root, settings=settings)
     extractor = InsightExtractor(use_llm=use_llm)
     populator = GraphPopulator(redis_url=graph_url, dry_run=dry_run)
@@ -99,3 +127,119 @@ def run_pipeline(
         console.print(f"[red]Encountered {len(stats.errors)} errors:[/]")
         for err in stats.errors:
             console.print(f" - {err}")
+
+
+@app.command("report")
+def generate_report(
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to .code-atlas.toml config file."),
+    graph_name: str = typer.Option("code_atlas", help="Graph name in FalkorDB."),
+    redis_url: str = typer.Option("redis://localhost:6379", help="FalkorDB connection URL."),
+    top_n: int = typer.Option(10, help="Number of top entities to show."),
+) -> None:
+    """Generate summary report from knowledge graph."""
+    import redis
+    from rich.panel import Panel
+
+    try:
+        client = redis.Redis.from_url(redis_url, decode_responses=True)
+        client.ping()
+    except (redis.ConnectionError, redis.TimeoutError) as e:
+        console.print(f"[red]Failed to connect to FalkorDB at {redis_url}[/]")
+        console.print(f"[red]Error: {e}[/]")
+        console.print("[yellow]Make sure FalkorDB is running: docker compose up -d[/]")
+        raise typer.Exit(code=1)
+
+    def query_graph(cypher: str) -> list[list]:
+        """Execute Cypher query and return results."""
+        try:
+            result = client.execute_command("GRAPH.QUERY", graph_name, cypher, "--compact")
+            # FalkorDB returns: [header, rows, stats]
+            if isinstance(result, list) and len(result) >= 2:
+                return result[1] if result[1] else []
+            return []
+        except redis.RedisError as e:
+            console.print(f"[red]Query failed: {e}[/]")
+            return []
+
+    # Top files by mentions
+    files_query = f"""
+    MATCH (f:File)<-[r:MENTIONS]-()
+    RETURN f.name, COUNT(r) AS mentions
+    ORDER BY mentions DESC
+    LIMIT {top_n}
+    """
+    files_result = query_graph(files_query)
+
+    if files_result:
+        files_table = Table("File", "Mentions", title=f"Top {top_n} Files")
+        for row in files_result:
+            files_table.add_row(str(row[0]), str(row[1]))
+        console.print(files_table)
+    else:
+        console.print("[yellow]No files found in graph[/]")
+
+    # Top concepts
+    concepts_query = f"""
+    MATCH (c:Concept)<-[r:MENTIONS]-()
+    RETURN c.name, COUNT(r) AS mentions
+    ORDER BY mentions DESC
+    LIMIT {top_n}
+    """
+    concepts_result = query_graph(concepts_query)
+
+    if concepts_result:
+        concepts_table = Table("Concept", "Mentions", title=f"Top {top_n} Concepts")
+        for row in concepts_result:
+            concepts_table.add_row(str(row[0]), str(row[1]))
+        console.print(concepts_table)
+    else:
+        console.print("[yellow]No concepts found in graph[/]")
+
+    # Session statistics
+    stats_query = """
+    MATCH (s:Session)
+    RETURN COUNT(s) AS total_sessions,
+           AVG(s.size_bytes) AS avg_size,
+           SUM(s.size_bytes) AS total_size
+    """
+    stats_result = query_graph(stats_query)
+
+    if stats_result and stats_result[0]:
+        total_sessions = stats_result[0][0]
+        avg_size = stats_result[0][1]
+        total_size = stats_result[0][2]
+
+        stats_text = f"""
+[bold]Total Sessions:[/bold] {total_sessions}
+[bold]Average Size:[/bold] {avg_size / 1024:.1f} KB
+[bold]Total Size:[/bold] {total_size / (1024 * 1024):.2f} MB
+        """
+        console.print(Panel(stats_text.strip(), title="Session Statistics", expand=False))
+    else:
+        console.print("[yellow]No session statistics available[/]")
+
+    # Recent sessions
+    recent_query = f"""
+    MATCH (s:Session)
+    RETURN s.id, s.project, s.modified_at
+    ORDER BY s.modified_at DESC
+    LIMIT {top_n}
+    """
+    recent_result = query_graph(recent_query)
+
+    if recent_result:
+        from datetime import datetime
+
+        recent_table = Table("Session ID", "Project", "Modified", title=f"Recent {top_n} Sessions")
+        for row in recent_result:
+            session_id = str(row[0])[:12] + "..."  # Truncate for display
+            project = str(row[1])
+            modified = datetime.fromtimestamp(float(row[2])).strftime("%Y-%m-%d %H:%M")
+            recent_table.add_row(session_id, project, modified)
+        console.print(recent_table)
+    else:
+        console.print("[yellow]No recent sessions found[/]")
+
+    # Summary message
+    if not any([files_result, concepts_result, stats_result, recent_result]):
+        console.print("\n[yellow]Graph appears to be empty. Run 'code-atlas run' to populate it.[/]")
