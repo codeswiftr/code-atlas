@@ -44,7 +44,13 @@ def falkordb_available() -> bool:
     try:
         client = redis.Redis(host="localhost", port=6379, decode_responses=True)
         client.ping()
-        return True
+        # Verify it's FalkorDB by checking for GRAPH.QUERY command
+        try:
+            client.execute_command("GRAPH.QUERY", "test", "RETURN 1")
+            return True
+        except redis.ResponseError:
+            # Regular Redis doesn't support GRAPH.QUERY
+            return False
     except (redis.ConnectionError, redis.TimeoutError):
         return False
 
