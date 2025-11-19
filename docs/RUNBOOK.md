@@ -728,7 +728,7 @@ def health_check():
 For issues not covered in this runbook:
 
 1. Check [GitHub Issues](https://github.com/codeswiftr-com/code-atlas/issues)
-2. Review [Architecture Docs](1_active_context.md)
+2. Review [Active Context](active-context.md) and [System Patterns](system-patterns.md)
 3. Enable debug logging: `export LOG_LEVEL=DEBUG`
 4. Create minimal reproduction case
 5. Open GitHub issue with logs

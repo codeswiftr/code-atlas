@@ -255,8 +255,10 @@ uv run code-atlas run --limit 50  # Run again for next batch
 ## Documentation
 
 - [RUNBOOK.md](docs/RUNBOOK.md) - Operations guide with detailed troubleshooting
-- [Project Brief](docs/0_brief.md) - Project overview and goals
-- [Architecture](docs/1_active_context.md) - System design details
+- [Project Brief](docs/project-brief.md) - Project overview and goals
+- [Active Context](docs/active-context.md) - Current status and objectives
+- [System Patterns](docs/system-patterns.md) - Architecture and design patterns
+- [PLAN.md](docs/PLAN.md) - Implementation plan and progress
 
 ## Contributing
 
