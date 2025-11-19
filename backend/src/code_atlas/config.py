@@ -6,6 +6,7 @@ import sys
 import tomllib
 from pathlib import Path
 
+import structlog
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
@@ -118,6 +119,46 @@ class AtlasSettings(BaseSettings):
         merged = {**toml_dict, **env_dict}
 
         return cls(**merged)
+
+
+def setup_logging(log_level: str = "INFO", json_output: bool = False) -> None:
+    """Configure structured logging for Code Atlas.
+
+    Args:
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
+        json_output: Force JSON output regardless of TTY
+    """
+    import logging
+    import sys
+
+    # Configure standard logging for third-party libs
+    logging.basicConfig(
+        level=getattr(logging, log_level.upper()),
+        format="%(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
+    # Configure structlog for our code
+    processors = [
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+    ]
+
+    if json_output or not sys.stdout.isatty():
+        processors.append(structlog.processors.JSONRenderer())
+    else:
+        processors.append(structlog.dev.ConsoleRenderer(colors=True))
+
+    structlog.configure(
+        processors=processors,
+        wrapper_class=structlog.stdlib.BoundLogger,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
 
 
 class SessionFilter(BaseModel):
