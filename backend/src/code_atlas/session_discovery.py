@@ -34,23 +34,9 @@ class SessionDiscovery:
     ) -> list[SessionMetadata]:
         """Return session metadata objects that satisfy the given filters."""
 
-        # Convert generator to list for backward compatibility
-        return list(self.discover_generator(filters, ignore_patterns))
-
-    def discover_generator(
-        self,
-        filters: SessionFilter | None = None,
-        ignore_patterns: Sequence[str] | None = None,
-    ) -> Iterator[SessionMetadata]:
-        """Yield session metadata objects that satisfy the given filters.
-
-        This method is memory-efficient for large codebases as it yields
-        sessions one at a time instead of building a complete list in memory.
-        """
-
         compiled_ignore = self._compile_ignore(ignore_patterns, self.settings.ignore_file)
         filt = filters or SessionFilter()
-        yielded_count = 0
+        metadata: list[SessionMetadata] = []
 
         for session_path in self._iter_session_files():
             if compiled_ignore and self._is_ignored(session_path, compiled_ignore):
@@ -60,11 +46,11 @@ class SessionDiscovery:
             if not self._passes_filters(meta, filt):
                 continue
 
-            yield meta
-            yielded_count += 1
-
-            if filt.limit and yielded_count >= filt.limit:
+            metadata.append(meta)
+            if filt.limit and len(metadata) >= filt.limit:
                 break
+
+        return metadata
 
     def _iter_session_files(self) -> Iterator[Path]:
         pattern = "*.jsonl"

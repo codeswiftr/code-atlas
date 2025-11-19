@@ -62,38 +62,3 @@ def test_discovery_limit(tmp_path: Path) -> None:
     results = discovery.discover(filters=SessionFilter(limit=2))
 
     assert len(results) == 2
-
-
-def test_discovery_generator_memory_efficient(tmp_path: Path) -> None:
-    """Test that discover_generator yields sessions one at a time."""
-    # Create multiple sessions
-    for i in range(5):
-        _write_session(tmp_path, f"project{i}", f"session{i}", i * 10)
-
-    discovery = SessionDiscovery(root=tmp_path, settings=AtlasSettings(claude_root=tmp_path))
-
-    # Test generator yields items one by one
-    generator = discovery.discover_generator()
-
-    results = []
-    for i, meta in enumerate(generator):
-        results.append(meta)
-        # Verify we get sessions one at a time
-        assert isinstance(meta.session_id, str)
-        assert meta.project.startswith("project")
-
-        # Test limit enforcement
-        if i >= 2:  # Test with limit=3
-            break
-
-    # Verify we got the expected number
-    assert len(results) == 3
-
-    # Test generator with filter
-    filtered_gen = discovery.discover_generator(
-        filters=SessionFilter(include_projects={"project0", "project2"})
-    )
-
-    filtered_results = list(filtered_gen)
-    assert len(filtered_results) == 2
-    assert {meta.project for meta in filtered_results} == {"project0", "project2"}
