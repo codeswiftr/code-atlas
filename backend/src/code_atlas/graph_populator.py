@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import hashlib
-import logging
 from dataclasses import dataclass, field
-from typing import Dict
 
 import redis
 
-from .insight_extractor import ExtractionResult, Entity, Relationship
+from .insight_extractor import Entity, ExtractionResult
+from .logging_config import get_logger
 from .models import ParsedSession
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _hash(value: str) -> str:
@@ -52,18 +51,15 @@ class GraphPopulator:
         )
 
         session_node = (
-            "MERGE (s:Session {id:%s}) "
-            "SET s.project=%s, s.size_bytes=%s, s.modified_at=%s, %s"
-        ) % (
-            _quote(session.metadata.session_id),
-            _quote(session.metadata.project),
-            session.metadata.size_bytes,
-            session.metadata.modified_at.timestamp(),
-            session_metadata_str,
+            f"MERGE (s:Session {{id:{_quote(session.metadata.session_id)}}}) "
+            f"SET s.project={_quote(session.metadata.project)}, "
+            f"s.size_bytes={session.metadata.size_bytes}, "
+            f"s.modified_at={session.metadata.modified_at.timestamp()}, "
+            f"{session_metadata_str}"
         )
         queries.append(session_node)
 
-        entity_ids: Dict[str, str] = {}
+        entity_ids: dict[str, str] = {}
         for entity in extraction.entities:
             entity_queries, node_id = self._entity_queries(
                 session.metadata.session_id, entity, extraction
@@ -90,14 +86,9 @@ class GraphPopulator:
 
         for insight in extraction.insights:
             queries.append(
-                "MATCH (s:Session {id:%s}) "
-                "MERGE (n:Insight {id:%s, text:%s}) "
-                "MERGE (s)-[:HAS_INSIGHT]->(n)"
-                % (
-                    _quote(session.metadata.session_id),
-                    _quote(_hash(insight)),
-                    _quote(insight),
-                )
+                f"MATCH (s:Session {{id:{_quote(session.metadata.session_id)}}}) "
+                f"MERGE (n:Insight {{id:{_quote(_hash(insight))}, text:{_quote(insight)}}}) "
+                f"MERGE (s)-[:HAS_INSIGHT]->(n)"
             )
 
         for query in queries:
@@ -115,23 +106,17 @@ class GraphPopulator:
             metadata_assignments = ", " + metadata_assignments
 
         node_query = (
-            "MERGE (e:{label} {{id:%s, name:%s}}) SET e.type=%s{metadata}"
-        ).format(label=label, metadata=metadata_assignments) % (
-            _quote(node_id),
-            _quote(entity.name),
-            _quote(entity.type),
+            f"MERGE (e:{label} {{id:{_quote(node_id)}, name:{_quote(entity.name)}}}) "
+            f"SET e.type={_quote(entity.type)}{metadata_assignments}"
         )
 
         # Add provenance metadata to MENTIONS relationship
         rel_query = (
-            "MATCH (s:Session {id:%s}), (e {id:%s}) "
-            "MERGE (s)-[r:MENTIONS]->(e) "
-            "SET r.confidence=%s, r.extracted_at=%s, r.source='code_atlas'"
-        ) % (
-            _quote(session_id),
-            _quote(node_id),
-            entity.confidence,
-            _quote(extraction.extracted_at or ""),
+            f"MATCH (s:Session {{id:{_quote(session_id)}}}), (e {{id:{_quote(node_id)}}}) "
+            f"MERGE (s)-[r:MENTIONS]->(e) "
+            f"SET r.confidence={entity.confidence}, "
+            f"r.extracted_at={_quote(extraction.extracted_at or '')}, "
+            f"r.source='code_atlas'"
         )
 
         return [node_query, rel_query], node_id
@@ -152,9 +137,18 @@ class GraphPopulator:
     def _execute(self, query: str) -> None:
         self.executed_queries.append(query)
         if self.client:
-            logger.debug("GRAPH.QUERY %s %s", self.graph_name, query)
+            logger.debug(
+                "Executing graph query",
+                graph_name=self.graph_name,
+                query=query,
+            )
             try:
                 self.client.execute_command("GRAPH.QUERY", self.graph_name, query, "--compact")
             except redis.RedisError as exc:
-                logger.error("Failed to execute query: %s", exc)
-                raise
+                logger.error(
+                    "Failed to execute graph query",
+                    graph_name=self.graph_name,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                raise exc

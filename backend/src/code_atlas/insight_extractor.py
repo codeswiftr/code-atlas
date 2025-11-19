@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
 import time
 from dataclasses import dataclass
@@ -14,9 +13,10 @@ from anthropic import Anthropic, APIError
 from pydantic import BaseModel, Field, ValidationError
 
 from .exceptions import CostLimitExceeded
-from .models import ParsedSession
+from .logging_config import get_logger
+from .models import ParsedSession, SessionMessage
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 EntityType = Literal["concept", "file", "tool", "problem", "solution"]
 
@@ -69,7 +69,9 @@ class CostGuard:
         """Record cost and check cumulative limit."""
         self.cumulative += actual_cost
         logger.debug(
-            f"Cost recorded: ${actual_cost:.6f}, cumulative: ${self.cumulative:.6f}"
+            "Cost recorded",
+            actual_cost_usd=actual_cost,
+            cumulative_cost_usd=self.cumulative,
         )
         if self.cumulative > self.max_cumulative:
             raise CostLimitExceeded(
@@ -111,7 +113,10 @@ class InsightExtractor:
             except (APIError, json.JSONDecodeError, ValueError, ValidationError, CostLimitExceeded) as exc:
                 # Fall back to heuristic extraction if structured response fails.
                 logger.warning(
-                    f"LLM extraction failed for session {session.metadata.session_id}: {exc}"
+                    "LLM extraction failed, falling back to heuristics",
+                    session_id=session.metadata.session_id,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
                 )
         return self._heuristic_extract(session)
 
@@ -153,7 +158,11 @@ class InsightExtractor:
                 estimated_cost_usd=0.0,  # Will be set by caller
             )
         except (ValidationError, KeyError, TypeError, ValueError) as exc:
-            logger.error(f"Schema validation failed: {exc}")
+            logger.error(
+                "Schema validation failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
             # Re-raise ValidationError as-is, wrap others in ValueError
             if isinstance(exc, ValidationError):
                 raise
@@ -170,8 +179,10 @@ class InsightExtractor:
         # Check if chunking is needed (>12K tokens)
         if total_tokens > 12000:
             logger.info(
-                f"Session {session.metadata.session_id} has ~{total_tokens} tokens. "
-                f"Splitting into chunks for extraction."
+                "Session exceeds token limit, splitting into chunks",
+                session_id=session.metadata.session_id,
+                total_tokens=total_tokens,
+                chunk_threshold=12000,
             )
             return self._extract_with_chunking(session)
 
@@ -187,14 +198,22 @@ class InsightExtractor:
                     # Exponential backoff: 1s, 2s, 4s
                     wait_time = 2**attempt
                     logger.warning(
-                        f"LLM API error (attempt {attempt + 1}/{max_retries}): {exc}. "
-                        f"Retrying in {wait_time}s..."
+                        "LLM API error, retrying with exponential backoff",
+                        session_id=session.metadata.session_id,
+                        attempt=attempt + 1,
+                        max_retries=max_retries,
+                        wait_time_seconds=wait_time,
+                        error=str(exc),
+                        error_type=type(exc).__name__,
                     )
                     time.sleep(wait_time)
                 else:
                     logger.error(
-                        f"LLM API error after {max_retries} attempts: {exc}. "
-                        f"Falling back to heuristics."
+                        "LLM API error after max retries, falling back to heuristics",
+                        session_id=session.metadata.session_id,
+                        max_retries=max_retries,
+                        error=str(exc),
+                        error_type=type(exc).__name__,
                     )
                     raise
 
@@ -203,7 +222,11 @@ class InsightExtractor:
     def _extract_with_chunking(self, session: ParsedSession) -> ExtractionResult:
         """Extract from large session by processing chunks and merging results."""
         chunks = self._chunk_session(session)
-        logger.info(f"Processing {len(chunks)} chunks for session {session.metadata.session_id}")
+        logger.info(
+            "Processing session with chunking",
+            session_id=session.metadata.session_id,
+            num_chunks=len(chunks),
+        )
 
         chunk_results: list[ExtractionResult] = []
 
@@ -218,7 +241,12 @@ class InsightExtractor:
                 referenced_files=session.referenced_files,
             )
 
-            logger.debug(f"Processing chunk {i+1}/{len(chunks)}")
+            logger.debug(
+                "Processing chunk",
+                session_id=session.metadata.session_id,
+                chunk_index=i + 1,
+                total_chunks=len(chunks),
+            )
 
             # Extract from this chunk (with retry logic)
             chunk_result = self._call_llm(chunk_session)
@@ -227,9 +255,12 @@ class InsightExtractor:
         # Merge all chunk results
         merged_result = self._merge_extractions(chunk_results)
         logger.info(
-            f"Merged {len(chunks)} chunks: {len(merged_result.entities)} entities, "
-            f"{len(merged_result.relationships)} relationships, "
-            f"${merged_result.estimated_cost_usd:.6f} total cost"
+            "Merged chunk results",
+            session_id=session.metadata.session_id,
+            num_chunks=len(chunks),
+            entities_created=len(merged_result.entities),
+            relationships_created=len(merged_result.relationships),
+            total_cost_usd=merged_result.estimated_cost_usd,
         )
 
         return merged_result
@@ -249,9 +280,10 @@ class InsightExtractor:
             estimated_cost = self._estimate_session_cost(session)
             if not self.cost_guard.check_session(estimated_cost):
                 logger.warning(
-                    f"Session {session.metadata.session_id} estimated cost "
-                    f"${estimated_cost:.6f} exceeds per-session limit "
-                    f"${self.cost_guard.max_session:.2f}. Falling back to heuristics."
+                    "Session cost exceeds limit, falling back to heuristics",
+                    session_id=session.metadata.session_id,
+                    estimated_cost_usd=estimated_cost,
+                    max_cost_usd=self.cost_guard.max_session,
                 )
                 raise CostLimitExceeded(
                     f"Estimated session cost ${estimated_cost:.6f} exceeds limit "
@@ -283,8 +315,12 @@ class InsightExtractor:
         actual_cost = self._calculate_cost(input_tokens, output_tokens)
 
         logger.debug(
-            f"LLM extraction: {input_tokens} input tokens, {output_tokens} output tokens, "
-            f"cost: ${actual_cost:.6f}"
+            "LLM extraction completed",
+            session_id=session.metadata.session_id,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=actual_cost,
+            model=self.model,
         )
 
         # Record actual cost with cost guard
