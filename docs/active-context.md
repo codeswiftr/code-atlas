@@ -10,7 +10,7 @@
 - ✅ GraphPopulator connected to real FalkorDB with provenance metadata
 - ✅ Structured logging implemented across all modules with contextual metadata
 - ✅ End-to-end pipeline tested and validated (82% test coverage)
-- ✅ **MVP Complete** - Ready for deployment validation
+- ✅ **MVP Complete** - Ready for Beta Launch
 
 ## Completed Features
 1. **Session Discovery**: Scans Claude project directories with filtering and size guards
@@ -25,12 +25,18 @@
 10. **CLI Commands**: discover, run, report with comprehensive options
 11. **Configuration**: TOML file support with environment variable overrides
 
-## Immediate Objectives (Deployment Prep)
+## Immediate Objectives (Beta Launch Prep)
 1. ✅ Final code quality validation (linting, tests)
 2. ✅ Documentation updates (all docs current)
 3. ⏳ Deployment checklist creation
 4. ⏳ End-to-end validation in clean environment
-5. ⏳ Production deployment
+5. ⏳ Beta launch deployment and smoke tests
+
+## Beta Launch Objectives
+1. **Pre-Launch Validation**: Complete deployment checklist, verify all systems in clean environment
+2. **Beta User Onboarding**: Provide clear quick start guide and configuration templates
+3. **Initial Monitoring**: Track first week stability, cost usage, and error rates
+4. **Feedback Collection**: Gather beta user feedback on usability, performance, and feature gaps
 
 ## Resolved Blockers
 - ✅ **Claude session location**: User-configurable via config file or CLI flags
@@ -44,9 +50,10 @@
 - **Monitoring**: Structured logging ready, Prometheus/OpenTelemetry deferred to Phase 2
 
 ## Next Milestones
-- **2025-01-16**: Final validation and deployment preparation
-- **2025-01-17**: Production deployment and smoke tests
-- **2025-01-31**: Monitor production usage and gather feedback
+- **2025-01-16**: Beta launch preparation (documentation, cleanup, validation)
+- **2025-01-17**: Beta launch date - deployment and initial smoke tests
+- **2025-01-24**: First week review - stability assessment and initial feedback
+- **2025-01-31**: Beta feedback review - prioritize Phase 2 features based on feedback
 - **2025-02-28**: Phase 2 features (incremental ingest, monitoring, redaction)
 
 ## References
