@@ -63,7 +63,7 @@ class TestAtlasMetrics:
         REGISTRY._names_to_collectors.clear()
 
         self.config = MetricsConfig(enabled=True, namespace="test_atlas")
-        self.metrics = AtlasMetrics(config)
+        self.metrics = AtlasMetrics(self.config)
 
     def teardown_method(self) -> None:
         """Clean up test fixtures."""
