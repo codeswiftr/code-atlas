@@ -43,6 +43,24 @@ class AtlasSettings(BaseSettings):
         description="Maximum total cost for pipeline run.",
         alias="CODE_ATLAS_MAX_CUMULATIVE_COST",
     )
+    # Database indexing settings
+    create_db_indexes: bool = Field(
+        default=True,
+        description="Create database indexes for optimal query performance.",
+        alias="CODE_ATLAS_CREATE_INDEXES",
+    )
+    db_index_creation_timeout: int = Field(
+        default=30,
+        ge=1,
+        le=300,
+        description="Timeout in seconds for database index creation operations.",
+        alias="CODE_ATLAS_INDEX_TIMEOUT",
+    )
+    verify_indexes: bool = Field(
+        default=True,
+        description="Verify that database indexes exist after creation.",
+        alias="CODE_ATLAS_VERIFY_INDEXES",
+    )
 
     model_config = {
         "env_file": ".env",

@@ -104,7 +104,13 @@ def run_pipeline(
     settings = load_settings(config)
     discovery = SessionDiscovery(root=root or settings.claude_root, settings=settings)
     extractor = InsightExtractor(use_llm=use_llm)
-    populator = GraphPopulator(redis_url=graph_url, dry_run=dry_run)
+    populator = GraphPopulator(
+        redis_url=graph_url,
+        dry_run=dry_run,
+        create_indexes=settings.create_db_indexes,
+        index_timeout=settings.db_index_creation_timeout,
+        verify_indexes_after_creation=settings.verify_indexes
+    )
     runner = PipelineRunner(discovery, extractor, populator)
 
     stats = runner.run(limit=limit)
@@ -255,3 +261,138 @@ def generate_report(
     if not any([files_result, concepts_result, stats_result, recent_result]):
         msg = "Graph appears to be empty. Run 'code-atlas run' to populate it."
         console.print(f"\n[yellow]{msg}[/]")
+
+
+@app.command("indexes")
+def manage_indexes(
+    config: Path | None = typer.Option(
+        None, "--config", "-c", help="Path to .code-atlas.toml config file."
+    ),
+    graph_name: str = typer.Option("code_atlas", help="Graph name in FalkorDB."),
+    redis_url: str = typer.Option("redis://localhost:6379", help="FalkorDB connection URL."),
+    action: str = typer.Option(
+        "list", "--action", "-a",
+        help="Action: list, create, verify, drop"
+    ),
+) -> None:
+    """Manage database indexes for optimal query performance."""
+    from rich.panel import Panel
+    from rich.table import Table
+    import redis
+
+    # Load settings
+    settings = load_settings(config)
+
+    # Test connection
+    try:
+        client = redis.Redis.from_url(redis_url, decode_responses=True)
+        client.ping()
+    except (redis.ConnectionError, redis.TimeoutError) as e:
+        console.print(f"[red]Failed to connect to FalkorDB at {redis_url}[/]")
+        console.print(f"[red]Error: {e}[/]")
+        console.print("[yellow]Make sure FalkorDB is running: docker compose up -d[/]")
+        raise typer.Exit(code=1) from e
+
+    # Create populator for index management
+    populator = GraphPopulator(
+        graph_name=graph_name,
+        redis_url=redis_url,
+        dry_run=False,
+        create_indexes=settings.create_db_indexes,
+        index_timeout=settings.db_index_creation_timeout,
+        verify_indexes_after_creation=settings.verify_indexes
+    )
+
+    if action == "list":
+        console.print(Panel("Database Index Configuration", expand=False))
+
+        indexes = populator.list_indexes()
+        table = Table("Category", "Index Count", "Description")
+
+        category_descriptions = {
+            "Session": "Indexes for Session nodes (id, project, modified_at, size)",
+            "Entity": "Indexes for File and Concept entities (id, name, type)",
+            "Insight": "Indexes for Insight nodes (id)",
+            "Relationships": "Indexes for MENTIONS relationships (confidence, timestamp)",
+            "FullText": "Full-text search indexes for entity names"
+        }
+
+        for category, index_list in indexes.items():
+            table.add_row(
+                category,
+                str(len(index_list)),
+                category_descriptions.get(category, "Unknown category")
+            )
+
+        console.print(table)
+
+        total_indexes = sum(len(indexes) for indexes in indexes.values())
+        console.print(f"\n[dim]Total indexes defined: {total_indexes}[/]")
+
+    elif action == "create":
+        console.print(f"[blue]Creating indexes in graph '{graph_name}'...[/]")
+
+        # Force index creation by creating a new populator
+        creation_populator = GraphPopulator(
+            graph_name=graph_name,
+            redis_url=redis_url,
+            dry_run=False,
+            create_indexes=True,
+            index_timeout=settings.db_index_creation_timeout,
+            verify_indexes_after_creation=settings.verify_indexes
+        )
+
+        # Count index creation queries
+        index_queries = [q for q in creation_populator.executed_queries
+                        if "CREATE INDEX" in q or "FULLTEXT INDEX" in q]
+
+        console.print(f"[green]✅ {len(index_queries)} index creation queries executed[/]")
+
+        if settings.verify_indexes:
+            console.print("[blue]Verifying index creation...[/]")
+            verification_result = creation_populator.verify_indexes()
+
+            success_count = sum(
+                1 for cat_status in verification_result.values()
+                if isinstance(cat_status, dict) and any(status is True for status in cat_status.values())
+            )
+            console.print(f"[green]✅ Index verification completed for {success_count} categories[/]")
+
+    elif action == "verify":
+        console.print(f"[blue]Verifying indexes in graph '{graph_name}'...[/]")
+
+        verification_result = populator.verify_indexes()
+
+        if "error" in verification_result:
+            console.print(f"[red]❌ {verification_result['error']}[/]")
+        else:
+            table = Table("Category", "Index Name", "Status")
+
+            for category, index_status in verification_result.items():
+                if isinstance(index_status, dict):
+                    for index_name, status in index_status.items():
+                        status_icon = "✅" if status else "❌"
+                        status_text = "Exists" if status else "Missing"
+                        table.add_row(category, index_name, f"{status_icon} {status_text}")
+
+            if table.row_count > 0:
+                console.print(table)
+            else:
+                console.print("[yellow]No index status information available[/]")
+
+    elif action == "drop":
+        console.print(f"[yellow]⚠️  Dropping all indexes from graph '{graph_name}'...[/]")
+
+        if not typer.confirm("This will remove all indexes. Continue?", default=False):
+            console.print("[dim]Operation cancelled.[/]")
+            return
+
+        populator.drop_indexes()
+
+        console.print("[green]✅ Index drop operation completed[/]")
+        console.print("[yellow]Note: Some indexes may be automatically recreated on next startup[/]")
+
+    else:
+        console.print(f"[red]Invalid action: {action}[/]")
+        console.print("Valid actions: list, create, verify, drop")
+        raise typer.Exit(code=1)

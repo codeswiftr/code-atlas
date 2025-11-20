@@ -276,3 +276,76 @@ def test_graph_populator_cleanup(
     )
     # New graph should have 0 nodes
     assert result is not None
+
+
+@pytest.mark.integration
+def test_graph_populator_index_creation_during_initialization(
+    falkordb_available: bool, test_graph_name: str, cleanup_test_graph: None
+) -> None:
+    """Test that indexes are created during GraphPopulator initialization."""
+    if not falkordb_available:
+        pytest.skip("FalkorDB not available at localhost:6379")
+
+    populator = GraphPopulator(
+        graph_name=test_graph_name,
+        dry_run=False,
+        create_indexes=True
+    )
+
+    # Check that index creation queries were executed
+    index_queries = [q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q]
+    assert len(index_queries) > 0, "No index creation queries were executed"
+
+    # Verify critical indexes exist
+    index_query_strings = " ".join(index_queries)
+    assert "session_id" in index_query_strings, "Missing session_id index"
+    assert "entity_name" in index_query_strings, "Missing entity_name index"
+
+
+@pytest.mark.integration
+def test_graph_populator_with_disabled_indexes(
+    falkordb_available: bool, test_graph_name: str, cleanup_test_graph: None
+) -> None:
+    """Test GraphPopulator behavior with indexes disabled."""
+    if not falkordb_available:
+        pytest.skip("FalkorDB not available at localhost:6379")
+
+    populator = GraphPopulator(
+        graph_name=test_graph_name,
+        dry_run=False,
+        create_indexes=False
+    )
+
+    # No index creation queries should be executed
+    index_queries = [q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q]
+    assert len(index_queries) == 0, "Index creation queries should not be executed when disabled"
+
+    # Test that normal operations still work
+    metadata = SessionMetadata(
+        path="/test/path.jsonl",
+        session_id="test-sess-no-index",
+        project="test_project",
+        size_bytes=512,
+        modified_at=datetime.now(tz=timezone.utc),
+    )
+    session = ParsedSession(
+        metadata=metadata,
+        messages=[SessionMessage(message_id="m1", role="user", text="test")],
+        total_tokens=50,
+        referenced_files=["test.py"],
+    )
+    extraction = ExtractionResult(
+        entities=[Entity(type="file", name="test.py")],
+        relationships=[],
+        insights=[],
+    )
+
+    populator.upsert(session, extraction)
+
+    # Should still be able to query data even without indexes
+    result = populator.client.execute_command(
+        "GRAPH.QUERY",
+        test_graph_name,
+        "MATCH (s:Session {id:'test-sess-no-index'}) RETURN s.project",
+    )
+    assert result is not None
