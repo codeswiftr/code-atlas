@@ -13,7 +13,9 @@ from .config import AtlasSettings, SessionFilter
 from .graph_populator import GraphPopulator
 from .insight_extractor import InsightExtractor
 from .logging_config import configure_logging
+from .metrics import init_metrics
 from .pipeline import PipelineRunner
+from .server import MetricsServer
 from .session_discovery import SessionDiscovery
 
 # Configure structured logging on module import
@@ -99,19 +101,30 @@ def run_pipeline(
         help="When true, do not execute GRAPH.QUERY commands (just log).",
     ),
 ) -> None:
-    """Placeholder pipeline that parses sessions and prints summaries."""
+    """Run the Code Atlas pipeline to process sessions."""
 
     settings = load_settings(config)
     discovery = SessionDiscovery(root=root or settings.claude_root, settings=settings)
     extractor = InsightExtractor(use_llm=use_llm)
+
+    # Initialize metrics if enabled
+    metrics = init_metrics(settings) if settings.enable_metrics else None
+
     populator = GraphPopulator(
         redis_url=graph_url,
         dry_run=dry_run,
         create_indexes=settings.create_db_indexes,
         index_timeout=settings.db_index_creation_timeout,
-        verify_indexes_after_creation=settings.verify_indexes
+        verify_indexes_after_creation=settings.verify_indexes,
+        metrics=metrics
     )
-    runner = PipelineRunner(discovery, extractor, populator)
+
+    # Pass metrics to extractor and populator
+    extractor.metrics = metrics
+
+    runner = PipelineRunner(
+        discovery, extractor, populator, settings=settings
+    )
 
     stats = runner.run(limit=limit)
 
@@ -142,6 +155,84 @@ def run_pipeline(
         console.print(f"[red]Encountered {len(stats.errors)} errors:[/]")
         for err in stats.errors:
             console.print(f" - {err}")
+
+    # Show metrics status if enabled
+    if settings.enable_metrics:
+        console.print(f"\n[green]✅ Metrics enabled and available at http://{settings.metrics_host}:{settings.metrics_port}{settings.metrics_path}[/]")
+
+
+@app.command("metrics")
+def start_metrics_server(
+    config: Path | None = typer.Option(
+        None, "--config", "-c", help="Path to .code-atlas.toml config file."
+    ),
+    host: str | None = typer.Option(
+        None, "--host", help="Override metrics server host."
+    ),
+    port: int | None = typer.Option(
+        None, "--port", help="Override metrics server port."
+    ),
+    daemon: bool = typer.Option(
+        False, "--daemon", help="Run metrics server in daemon mode (background)."
+    ),
+) -> None:
+    """Start the Prometheus metrics server for monitoring."""
+    import threading
+    from rich.panel import Panel
+
+    settings = load_settings(config)
+
+    # Override settings with CLI arguments if provided
+    if host:
+        settings.metrics_host = host
+    if port:
+        settings.metrics_port = port
+
+    if not settings.enable_metrics:
+        console.print("[yellow]Metrics collection is disabled in configuration.[/]")
+        console.print("Set enable_metrics = true in your .code-atlas.toml or use CODE_ATLAS_ENABLE_METRICS=true")
+        raise typer.Exit(code=1)
+
+    # Start metrics server
+    console.print(f"[blue]Starting metrics server...[/]")
+    console.print(Panel(
+        f"[bold]Metrics Server[/bold]\n"
+        f"Host: {settings.metrics_host}\n"
+        f"Port: {settings.metrics_port}\n"
+        f"Metrics: http://{settings.metrics_host}:{settings.metrics_port}{settings.metrics_path}\n"
+        f"Health: http://{settings.metrics_host}:{settings.metrics_port}{settings.health_path}\n"
+        f"Status: http://{settings.metrics_host}:{settings.metrics_port}{settings.status_path}",
+        title="Monitoring Configuration",
+        expand=False
+    ))
+
+    try:
+        if daemon:
+            # Run in daemon thread (non-blocking)
+            def run_server():
+                server = MetricsServer(settings)
+                server.run()
+
+            server_thread = threading.Thread(target=run_server, daemon=True)
+            server_thread.start()
+
+            console.print("[green]✅ Metrics server started in daemon mode[/]")
+            console.print("[dim]Press Ctrl+C to stop[/]")
+
+            # Keep main thread alive
+            try:
+                while server_thread.is_alive():
+                    server_thread.join(timeout=1)
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Stopping metrics server...[/]")
+        else:
+            # Run in foreground (blocking)
+            server = MetricsServer(settings)
+            server.run()
+
+    except Exception as e:
+        console.print(f"[red]Failed to start metrics server: {e}[/]")
+        raise typer.Exit(code=1) from e
 
 
 @app.command("report")

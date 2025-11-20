@@ -10,6 +10,7 @@ import redis
 
 from .insight_extractor import Entity, ExtractionResult
 from .logging_config import get_logger
+from .metrics import AtlasMetrics
 from .models import ParsedSession
 
 logger = get_logger(__name__)
@@ -32,6 +33,7 @@ class GraphPopulator:
     create_indexes: bool = True
     index_timeout: int = 30
     verify_indexes_after_creation: bool = True
+    metrics: AtlasMetrics | None = None
     client: redis.Redis | None = field(init=False, default=None)
     executed_queries: list[str] = field(init=False, default_factory=list)
 
@@ -74,6 +76,10 @@ class GraphPopulator:
         else:
             self.client = None
 
+        # Update active database connections metric
+        if self.metrics and self.client:
+            self.metrics.update_db_connections(1)
+
         # Create indexes if requested and not in dry-run mode
         if self.create_indexes and not self.dry_run and self.client:
             self._ensure_indexes()
@@ -81,6 +87,10 @@ class GraphPopulator:
                 self._verify_index_creation()
 
     def upsert(self, session: ParsedSession, extraction: ExtractionResult) -> None:
+        # Record session node creation
+        if self.metrics:
+            self.metrics.record_node_created("Session")
+
         queries: list[str] = []
 
         # Add extraction provenance metadata to session node
@@ -101,6 +111,11 @@ class GraphPopulator:
 
         entity_ids: dict[str, str] = {}
         for entity in extraction.entities:
+            # Record entity creation metrics
+            if self.metrics:
+                self.metrics.record_node_created(entity.type.capitalize())
+                self.metrics.record_entity_extracted(entity.type)
+
             entity_queries, node_id = self._entity_queries(
                 session.metadata.session_id, entity, extraction
             )
@@ -108,6 +123,11 @@ class GraphPopulator:
             queries.extend(entity_queries)
 
         for rel in extraction.relationships:
+            # Record relationship creation metrics
+            if self.metrics:
+                self.metrics.record_relationship_created(rel.type or "RELATED_TO")
+                self.metrics.record_relationship_extracted(rel.type or "RELATED_TO")
+
             src_clause = self._match_clause(rel.source, session, entity_ids, alias="src")
             dst_clause = self._match_clause(rel.target, session, entity_ids, alias="dst")
 
@@ -125,6 +145,10 @@ class GraphPopulator:
             )
 
         for insight in extraction.insights:
+            # Record insight creation metrics
+            if self.metrics:
+                self.metrics.record_node_created("Insight")
+
             queries.append(
                 f"MATCH (s:Session {{id:{_quote(session.metadata.session_id)}}}) "
                 f"MERGE (n:Insight {{id:{_quote(_hash(insight))}, text:{_quote(insight)}}}) "
@@ -177,21 +201,36 @@ class GraphPopulator:
     def _execute(self, query: str) -> None:
         self.executed_queries.append(query)
         if self.client:
-            logger.debug(
-                "Executing graph query",
-                graph_name=self.graph_name,
-                query=query,
+            # Time the query execution
+            context_manager = (
+                self.metrics.time_db_query("execute") if self.metrics else self._null_context_manager()
             )
-            try:
-                self.client.execute_command("GRAPH.QUERY", self.graph_name, query, "--compact")
-            except redis.RedisError as exc:
-                logger.error(
-                    "Failed to execute graph query",
+
+            with context_manager:
+                logger.debug(
+                    "Executing graph query",
                     graph_name=self.graph_name,
-                    error=str(exc),
-                    error_type=type(exc).__name__,
+                    query=query,
                 )
-                raise exc
+                try:
+                    self.client.execute_command("GRAPH.QUERY", self.graph_name, query, "--compact")
+                except redis.RedisError as exc:
+                    # Record error metrics
+                    if self.metrics:
+                        self.metrics.record_error("database", type(exc).__name__)
+
+                    logger.error(
+                        "Failed to execute graph query",
+                        graph_name=self.graph_name,
+                        error=str(exc),
+                        error_type=type(exc).__name__,
+                    )
+                    raise exc
+
+    def _null_context_manager(self):
+        """Null context manager for when metrics are disabled."""
+        from contextlib import nullcontext
+        return nullcontext()
 
     def _ensure_indexes(self) -> None:
         """Create database indexes for optimal query performance."""

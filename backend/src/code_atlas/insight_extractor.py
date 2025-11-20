@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from .exceptions import CostLimitExceeded
 from .logging_config import get_logger
+from .metrics import AtlasMetrics
 from .models import ParsedSession, SessionMessage
 
 logger = get_logger(__name__)
@@ -89,6 +90,7 @@ class InsightExtractor:
     model: str = "claude-3-5-sonnet-latest"
     use_llm: bool | None = None
     cost_guard: CostGuard | None = None
+    metrics: AtlasMetrics | None = None
 
     def __post_init__(self) -> None:
         api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN")
@@ -107,18 +109,45 @@ class InsightExtractor:
             self.client = None
 
     def extract(self, session: ParsedSession) -> ExtractionResult:
-        if self.client:
-            try:
-                return self._call_llm_with_retry(session)
-            except (APIError, json.JSONDecodeError, ValueError, ValidationError, CostLimitExceeded) as exc:
-                # Fall back to heuristic extraction if structured response fails.
-                logger.warning(
-                    "LLM extraction failed, falling back to heuristics",
-                    session_id=session.metadata.session_id,
-                    error=str(exc),
-                    error_type=type(exc).__name__,
-                )
-        return self._heuristic_extract(session)
+        # Record extraction request
+        if self.metrics:
+            method = "llm" if self.client else "heuristic"
+            self.metrics.record_extraction_request(method, self.model)
+
+        # Time the extraction
+        context_manager = (
+            self.metrics.time_extraction(method) if self.metrics else self._null_context_manager()
+        )
+
+        with context_manager:
+            if self.client:
+                try:
+                    return self._call_llm_with_retry(session)
+                except (APIError, json.JSONDecodeError, ValueError, ValidationError, CostLimitExceeded) as exc:
+                    # Record error metrics
+                    if self.metrics:
+                        self.metrics.record_error("extraction", type(exc).__name__)
+
+                    # Fall back to heuristic extraction if structured response fails.
+                    logger.warning(
+                        "LLM extraction failed, falling back to heuristics",
+                        session_id=session.metadata.session_id,
+                        error=str(exc),
+                        error_type=type(exc).__name__,
+                    )
+
+                    # Record fallback extraction
+                    if self.metrics:
+                        self.metrics.record_extraction_request("heuristic_fallback", "heuristic")
+
+                    return self._heuristic_extract(session)
+            else:
+                return self._heuristic_extract(session)
+
+    def _null_context_manager(self):
+        """Null context manager for when metrics are disabled."""
+        from contextlib import nullcontext
+        return nullcontext()
 
     def _calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """Calculate API cost based on actual token usage and model pricing."""
@@ -313,6 +342,10 @@ class InsightExtractor:
 
         # Calculate actual cost based on usage
         actual_cost = self._calculate_cost(input_tokens, output_tokens)
+
+        # Record cost metrics
+        if self.metrics:
+            self.metrics.record_cost(actual_cost, self.model, "api_call")
 
         logger.debug(
             "LLM extraction completed",

@@ -1,0 +1,110 @@
+# Example Code Atlas configuration file
+# Copy this file to .code-atlas.toml and customize for your environment
+
+[data]
+# Root directory containing Claude Code project folders
+claude_root = "~/.claude/projects"
+
+# Optional gitignore-style file listing session paths to skip
+# ignore_file = "~/.code-atlas-ignore"
+
+# Skip sessions larger than this size (MB) to protect memory usage
+max_session_size_mb = 50
+
+# Cost limits for LLM extraction
+max_cost_per_session_usd = 0.02
+max_cumulative_cost_usd = 10.00
+
+[database]
+# Database indexing settings
+create_db_indexes = true
+db_index_creation_timeout = 30
+verify_indexes = true
+
+# FalkorDB connection settings
+redis_url = "redis://localhost:6379"
+graph_name = "code_atlas"
+
+[monitoring]
+# Enable Prometheus metrics collection and HTTP server
+enable_metrics = true
+
+# Metrics server network settings
+metrics_host = "0.0.0.0"
+metrics_port = 8000
+
+# HTTP endpoint paths
+metrics_path = "/metrics"
+health_path = "/health"
+status_path = "/status"
+
+# System metrics collection interval (seconds)
+metrics_collection_interval = 30
+
+# Prometheus metrics namespace prefix
+prometheus_namespace = "code_atlas"
+
+[logging]
+# Structured logging configuration
+log_level = "INFO"
+log_format = "json"
+
+# Log file settings
+log_file = "~/.code-atlas/logs/code-atlas.log"
+log_rotation = "daily"
+log_retention_days = 30
+
+[processing]
+# Pipeline configuration
+max_retries = 3
+retry_delay_base = 1.0
+quarantine_dir = "~/.code-atlas/quarantine"
+
+# Session processing limits
+batch_size = 10
+concurrent_sessions = 5
+
+[extraction]
+# LLM extraction settings
+use_llm = true
+model = "claude-3-5-sonnet-latest"
+temperature = 0
+max_tokens = 1024
+
+# Extraction thresholds
+chunk_threshold_tokens = 12000
+max_message_length = 400
+max_messages_per_session = 50
+
+[api]
+# Anthropic API settings
+# anthropic_api_key = "your-api-key-here"
+# anthropic_base_url = "https://api.anthropic.com"
+# anthropic_model = "claude-3-5-sonnet-latest"
+
+[cost]
+# Cost tracking settings (per 1M tokens)
+claude_sonnet_input_cost = 3.00
+claude_sonnet_output_cost = 15.00
+claude_haiku_input_cost = 0.25
+claude_haiku_output_cost = 1.25
+
+[security]
+# Security settings
+verify_ssl = true
+request_timeout = 30
+max_request_retries = 3
+
+[features]
+# Feature flags
+enable_session_validation = true
+enable_cost_guard = true
+enable_performance_tracking = true
+enable_error_recovery = true
+
+[development]
+# Development-specific settings
+debug_mode = false
+profiling_enabled = false
+mock_external_apis = false
+test_mode = false

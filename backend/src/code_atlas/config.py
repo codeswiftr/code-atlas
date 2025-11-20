@@ -61,6 +61,51 @@ class AtlasSettings(BaseSettings):
         description="Verify that database indexes exist after creation.",
         alias="CODE_ATLAS_VERIFY_INDEXES",
     )
+    # Monitoring settings
+    enable_metrics: bool = Field(
+        default=False,
+        description="Enable Prometheus metrics collection and HTTP server.",
+        alias="CODE_ATLAS_ENABLE_METRICS",
+    )
+    metrics_host: str = Field(
+        default="0.0.0.0",
+        description="Host address for metrics HTTP server.",
+        alias="CODE_ATLAS_METRICS_HOST",
+    )
+    metrics_port: int = Field(
+        default=8000,
+        ge=1,
+        le=65535,
+        description="Port for metrics HTTP server.",
+        alias="CODE_ATLAS_METRICS_PORT",
+    )
+    metrics_path: str = Field(
+        default="/metrics",
+        description="Path for Prometheus metrics endpoint.",
+        alias="CODE_ATLAS_METRICS_PATH",
+    )
+    health_path: str = Field(
+        default="/health",
+        description="Path for health check endpoint.",
+        alias="CODE_ATLAS_HEALTH_PATH",
+    )
+    status_path: str = Field(
+        default="/status",
+        description="Path for detailed status endpoint.",
+        alias="CODE_ATLAS_STATUS_PATH",
+    )
+    metrics_collection_interval: int = Field(
+        default=30,
+        ge=1,
+        le=300,
+        description="Interval in seconds for collecting system metrics.",
+        alias="CODE_ATLAS_METRICS_INTERVAL",
+    )
+    prometheus_namespace: str = Field(
+        default="code_atlas",
+        description="Prometheus metrics namespace prefix.",
+        alias="CODE_ATLAS_PROMETHEUS_NAMESPACE",
+    )
 
     model_config = {
         "env_file": ".env",

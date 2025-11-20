@@ -6,17 +6,20 @@ readme = "README.md"
 authors = [
     { name = "Bogdan Veliscu", email = "bogdan.veliscu@outlook.com" }
 ]
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11,<3.15"
 dependencies = [
     "anthropic>=0.30.0",
+    "fastapi>=0.115.0",
     "httpx>=0.26.0",
     "pathspec>=0.12.1",
+    "prometheus-client>=0.21.0",
     "pydantic>=2.7.0",
     "pydantic-settings>=2.12.0",
     "rich>=14.0.0",
     "redis>=5.0.0",
     "structlog>=24.1.0",
     "typer>=0.12.5",
+    "uvicorn>=0.32.0",
 ]
 
 [project.scripts]

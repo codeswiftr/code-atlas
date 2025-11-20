@@ -1,17 +1,46 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+*.pyc
+*.pyo
+*.pyd
+.Python
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+*.egg
 
 # Virtual environments
-.venv
+.venv/
+venv/
+ENV/
+env/
 
-# Local config
+# Local configuration
 .env
 .env.*
+!.env.example
 
 # Test coverage
 .coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Code Atlas specific
+.code-atlas-quarantine/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup

@@ -14,6 +14,7 @@ from .config import AtlasSettings, SessionFilter
 from .graph_populator import GraphPopulator
 from .insight_extractor import CostGuard, ExtractionResult, InsightExtractor
 from .logging_config import get_logger
+from .metrics import AtlasMetrics, init_metrics
 from .session_discovery import SessionDiscovery
 from .session_parser import SessionParser
 
@@ -51,28 +52,46 @@ class PipelineRunner:
     populator: GraphPopulator
     config: PipelineConfig = field(default_factory=PipelineConfig)
     settings: AtlasSettings | None = None
+    metrics: AtlasMetrics | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
-        """Initialize cost guard if settings provided and extractor uses LLM."""
-        if self.settings and self.extractor.client:
-            cost_guard = CostGuard(
-                max_session=self.settings.max_cost_per_session_usd,
-                max_cumulative=self.settings.max_cumulative_cost_usd,
-            )
-            self.extractor.cost_guard = cost_guard
+        """Initialize cost guard and metrics if settings provided."""
+        if self.settings:
+            # Initialize cost guard if extractor uses LLM
+            if self.extractor.client:
+                cost_guard = CostGuard(
+                    max_session=self.settings.max_cost_per_session_usd,
+                    max_cumulative=self.settings.max_cumulative_cost_usd,
+                )
+                self.extractor.cost_guard = cost_guard
+
+            # Initialize metrics if enabled
+            if self.settings.enable_metrics:
+                self.metrics = init_metrics(self.settings)
 
     def run(self, limit: int | None = None) -> PipelineStats:
         stats = PipelineStats()
         sessions = self.discovery.discover(filters=SessionFilter(limit=limit))
 
+        # Convert sessions to list to get count and for multiple iterations
+        session_list = list(sessions) if sessions else []
+
         logger.info(
             "Pipeline run started",
-            num_sessions_discovered=len(list(sessions)) if hasattr(sessions, "__len__") else None,
+            num_sessions_discovered=len(session_list),
             limit=limit,
         )
 
-        for meta in sessions:
+        # Update queue size metric
+        if self.metrics:
+            self.metrics.update_queue_size(len(session_list))
+
+        for meta in session_list:
             self._process_session_with_retry(meta, stats)
+
+        # Record final metrics
+        if self.metrics:
+            self.metrics.update_queue_size(0)  # Queue is empty after processing
 
         logger.info(
             "Pipeline run completed",
@@ -96,55 +115,89 @@ class PipelineRunner:
             size_bytes=meta.size_bytes,
         )
 
-        for attempt in range(self.config.max_retries):
-            try:
-                parsed = SessionParser(metadata=meta).parse()
-                extraction = self.extractor.extract(parsed)
-                self.populator.upsert(parsed, extraction)
-                self._update_stats(stats, parsed.messages, extraction)
-                logger.info(
-                    "Session processed successfully",
-                    session_id=meta.session_id,
-                    entities_created=len(extraction.entities),
-                    relationships_created=len(extraction.relationships),
-                    cost_usd=extraction.estimated_cost_usd,
-                )
-                return  # Success - exit retry loop
-            except Exception as exc:  # noqa: BLE001
-                last_exception = exc
-                stats.retries_attempted += 1
+        # Update active sessions metric
+        if self.metrics:
+            self.metrics.update_active_sessions(1)
 
-                if attempt < self.config.max_retries - 1:
-                    # Exponential backoff
-                    wait_time = self.config.retry_delay_base * (2**attempt)
-                    logger.warning(
-                        "Session processing failed, retrying",
+        # Time the pipeline processing
+        context_manager = (
+            self.metrics.time_pipeline_processing(meta.project)
+            if self.metrics else self._null_context_manager()
+        )
+
+        with context_manager:
+            for attempt in range(self.config.max_retries):
+                try:
+                    parsed = SessionParser(metadata=meta).parse()
+                    extraction = self.extractor.extract(parsed)
+                    self.populator.upsert(parsed, extraction)
+                    self._update_stats(stats, parsed.messages, extraction)
+
+                    # Record success metrics
+                    if self.metrics:
+                        self.metrics.record_session_processed(meta.project, "success")
+
+                    logger.info(
+                        "Session processed successfully",
                         session_id=meta.session_id,
-                        attempt=attempt + 1,
-                        max_retries=self.config.max_retries,
-                        wait_time_seconds=wait_time,
-                        error=str(exc),
-                        error_type=type(exc).__name__,
+                        entities_created=len(extraction.entities),
+                        relationships_created=len(extraction.relationships),
+                        cost_usd=extraction.estimated_cost_usd,
                     )
-                    console.print(
-                        f"[yellow]Retry {attempt + 1}/{self.config.max_retries} "
-                        f"for {meta.session_id}: {exc}. Waiting {wait_time}s...[/]"
-                    )
-                    time.sleep(wait_time)
-                else:
-                    # Max retries exhausted - quarantine and record error
-                    stats.errors.append(f"{meta.session_id}: {exc}")
-                    logger.error(
-                        "Session processing failed after max retries, quarantining",
-                        session_id=meta.session_id,
-                        max_retries=self.config.max_retries,
-                        error=str(exc),
-                        error_type=type(exc).__name__,
-                    )
-                    console.print(f"[red]Failed processing {meta.session_id} after "
-                                  f"{self.config.max_retries} attempts: {exc}[/]")
-                    self._quarantine_session(meta, last_exception)
-                    stats.sessions_quarantined += 1
+                    return  # Success - exit retry loop
+                except Exception as exc:  # noqa: BLE001
+                    last_exception = exc
+                    stats.retries_attempted += 1
+
+                    # Record error metrics
+                    if self.metrics:
+                        self.metrics.record_error("pipeline", type(exc).__name__)
+
+                    if attempt < self.config.max_retries - 1:
+                        # Exponential backoff
+                        wait_time = self.config.retry_delay_base * (2**attempt)
+                        logger.warning(
+                            "Session processing failed, retrying",
+                            session_id=meta.session_id,
+                            attempt=attempt + 1,
+                            max_retries=self.config.max_retries,
+                            wait_time_seconds=wait_time,
+                            error=str(exc),
+                            error_type=type(exc).__name__,
+                        )
+                        console.print(
+                            f"[yellow]Retry {attempt + 1}/{self.config.max_retries} "
+                            f"for {meta.session_id}: {exc}. Waiting {wait_time}s...[/]"
+                        )
+                        time.sleep(wait_time)
+                    else:
+                        # Max retries exhausted - quarantine and record error
+                        stats.errors.append(f"{meta.session_id}: {exc}")
+
+                        # Record failure metrics
+                        if self.metrics:
+                            self.metrics.record_session_processed(meta.project, "failed")
+
+                        logger.error(
+                            "Session processing failed after max retries, quarantining",
+                            session_id=meta.session_id,
+                            max_retries=self.config.max_retries,
+                            error=str(exc),
+                            error_type=type(exc).__name__,
+                        )
+                        console.print(f"[red]Failed processing {meta.session_id} after "
+                                      f"{self.config.max_retries} attempts: {exc}[/]")
+                        self._quarantine_session(meta, last_exception)
+                        stats.sessions_quarantined += 1
+                finally:
+                    # Update active sessions metric when done
+                    if self.metrics:
+                        self.metrics.update_active_sessions(0)
+
+    def _null_context_manager(self):
+        """Null context manager for when metrics are disabled."""
+        from contextlib import nullcontext
+        return nullcontext()
 
     def _quarantine_session(self, meta, exception: Exception) -> None:
         """Save failed session details to quarantine directory."""
@@ -189,3 +242,20 @@ class PipelineRunner:
         stats.relationships_created += len(extraction.relationships)
         stats.insights_logged += len(extraction.insights)
         stats.estimated_cost_usd += extraction.estimated_cost_usd
+
+        # Record metrics
+        if self.metrics:
+            # Messages and tokens
+            self.metrics.record_message_processed()
+            self.metrics.record_tokens_processed(
+                sum(message.token_count or 0 for message in messages)
+            )
+
+            # Cost
+            self.metrics.record_session_cost(extraction.estimated_cost_usd)
+            if extraction.estimated_cost_usd > 0:
+                self.metrics.record_cost(
+                    extraction.estimated_cost_usd,
+                    extraction.extractor_model or "unknown",
+                    "extraction"
+                )
