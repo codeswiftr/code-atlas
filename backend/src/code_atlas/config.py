@@ -43,6 +43,25 @@ class AtlasSettings(BaseSettings):
         description="Maximum total cost for pipeline run.",
         alias="CODE_ATLAS_MAX_CUMULATIVE_COST",
     )
+    # LLM provider settings
+    llm_provider: str = Field(
+        default="anthropic",
+        description="LLM provider to use: 'anthropic' or 'openrouter'.",
+        alias="CODE_ATLAS_LLM_PROVIDER",
+    )
+    openrouter_api_key: str | None = Field(
+        default=None,
+        description="OpenRouter API key (from OPENROUTER_API_KEY env var).",
+    )
+    openrouter_model: str | None = Field(
+        default=None,
+        description="OpenRouter model to use (from OPENROUTER_MODEL env var).",
+    )
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1",
+        description="OpenRouter API base URL.",
+        alias="CODE_ATLAS_OPENROUTER_BASE_URL",
+    )
     # Database indexing settings
     create_db_indexes: bool = Field(
         default=True,
@@ -106,6 +125,27 @@ class AtlasSettings(BaseSettings):
         description="Prometheus metrics namespace prefix.",
         alias="CODE_ATLAS_PROMETHEUS_NAMESPACE",
     )
+    # API settings
+    api_key_required: bool = Field(
+        default=False,
+        description="Require API key for all API endpoints.",
+        alias="CODE_ATLAS_API_KEY_REQUIRED",
+    )
+    admin_api_key: str | None = Field(
+        default=None,
+        description="Admin API key for full access.",
+        alias="CODE_ATLAS_ADMIN_API_KEY",
+    )
+    cors_origins: list[str] = Field(
+        default=["*"],
+        description="Allowed CORS origins.",
+        alias="CODE_ATLAS_CORS_ORIGINS",
+    )
+
+    @property
+    def session_root(self) -> Path:
+        """Alias for claude_root for API consistency."""
+        return self.claude_root
 
     model_config = {
         "env_file": ".env",

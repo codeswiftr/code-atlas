@@ -7,6 +7,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 from .config import AtlasSettings, SessionFilter
@@ -89,7 +90,10 @@ def run_pipeline(
     root: Path | None = typer.Option(None, help="Override Claude projects root."),
     limit: int | None = typer.Option(5, help="Limit number of sessions processed."),
     use_llm: bool = typer.Option(
-        False, "--use-llm/--no-use-llm", help="Call Anthropic for extraction."
+        False, "--use-llm/--no-use-llm", help="Use LLM for extraction (Anthropic or OpenRouter)."
+    ),
+    provider: str = typer.Option(
+        None, "--provider", help="LLM provider: 'anthropic' or 'openrouter'. Defaults to config/env."
     ),
     graph_url: str | None = typer.Option(
         None,
@@ -105,7 +109,20 @@ def run_pipeline(
 
     settings = load_settings(config)
     discovery = SessionDiscovery(root=root or settings.claude_root, settings=settings)
-    extractor = InsightExtractor(use_llm=use_llm)
+    
+    # Determine provider: CLI flag > config > env > default
+    llm_provider = provider or settings.llm_provider
+    if llm_provider and llm_provider not in ("anthropic", "openrouter"):
+        console.print(f"[red]Invalid provider '{llm_provider}'. Must be 'anthropic' or 'openrouter'.[/]")
+        raise typer.Exit(code=1)
+    
+    extractor = InsightExtractor(
+        use_llm=use_llm,
+        provider=llm_provider if llm_provider else None,
+        openrouter_api_key=settings.openrouter_api_key,
+        openrouter_model=settings.openrouter_model,
+        openrouter_base_url=settings.openrouter_base_url,
+    )
 
     # Initialize metrics if enabled
     metrics = init_metrics(settings) if settings.enable_metrics else None
@@ -487,3 +504,73 @@ def manage_indexes(
         console.print(f"[red]Invalid action: {action}[/]")
         console.print("Valid actions: list, create, verify, drop")
         raise typer.Exit(code=1)
+
+
+@app.command("serve")
+def serve_api(
+    config: Path | None = typer.Option(
+        None, "--config", "-c", help="Path to .code-atlas.toml config file."
+    ),
+    host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host to bind the server to."),
+    port: int = typer.Option(8000, "--port", "-p", help="Port to bind the server to."),
+    reload: bool = typer.Option(False, "--reload", help="Enable auto-reload for development."),
+    workers: int = typer.Option(1, "--workers", "-w", help="Number of worker processes."),
+) -> None:
+    """Start the Code Atlas API server.
+
+    This command starts a FastAPI server that provides:
+    - Session discovery and processing endpoints
+    - Knowledge graph query and visualization APIs
+    - Health checks and Prometheus metrics
+
+    Example usage:
+        # Start server with defaults
+        code-atlas serve
+
+        # Start on custom port with auto-reload
+        code-atlas serve --port 9000 --reload
+
+        # Production mode with multiple workers
+        code-atlas serve --workers 4
+    """
+    import uvicorn
+
+    settings = load_settings(config)
+
+    # Update settings with CLI overrides
+    settings.metrics_host = host
+    settings.metrics_port = port
+    settings.enable_metrics = True
+
+    console.print(Panel.fit(
+        f"[bold blue]Code Atlas API Server[/]\n\n"
+        f"Host: {host}\n"
+        f"Port: {port}\n"
+        f"Workers: {workers}\n"
+        f"Reload: {reload}\n"
+        f"\n[dim]API docs: http://{host}:{port}/docs[/]",
+        title="Starting Server",
+    ))
+
+    # Import here to avoid circular imports
+    from .api.main import create_app
+
+    if reload:
+        # Development mode with auto-reload
+        uvicorn.run(
+            "code_atlas.api.main:app",
+            host=host,
+            port=port,
+            reload=True,
+            log_level="info",
+        )
+    else:
+        # Production mode
+        app_instance = create_app(settings)
+        uvicorn.run(
+            app_instance,
+            host=host,
+            port=port,
+            workers=workers,
+            log_level="info",
+        )
