@@ -41,6 +41,23 @@ class EntityResponse(BaseModel):
     source_session: str | None = None
     created_at: datetime | None = None
     mention_count: int = 0
+    # Merge tracking fields
+    merged_count: int | None = Field(
+        default=None,
+        description="Number of entities merged into this one",
+    )
+    merged_names: list[str] | None = Field(
+        default=None,
+        description="Names of entities that were merged into this one",
+    )
+    last_merged_at: datetime | None = Field(
+        default=None,
+        description="Timestamp of the last merge operation",
+    )
+    is_canonical: bool = Field(
+        default=True,
+        description="Whether this is a canonical entity (not merged into another)",
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -56,6 +73,10 @@ class EntityResponse(BaseModel):
                 "source_session": "session-def456",
                 "created_at": "2025-01-15T10:30:00Z",
                 "mention_count": 5,
+                "merged_count": 2,
+                "merged_names": ["Auth", "auth system"],
+                "last_merged_at": "2025-01-15T12:00:00Z",
+                "is_canonical": True,
             }
         }
     }
@@ -334,6 +355,66 @@ class EntitySearchResponse(BaseResponse):
                 "total": 1,
                 "query": "auth",
                 "took_ms": 12.5,
+            }
+        }
+    }
+
+
+class MergeRecordResponse(BaseModel):
+    """Record of an entity merge operation."""
+
+    merged_id: str = Field(description="ID of entity that was merged (deleted)")
+    canonical_id: str = Field(description="ID of entity that received the merge")
+    merged_at: datetime = Field(description="When the merge occurred")
+    similarity_score: float = Field(
+        ge=0.0, le=1.0, description="Similarity score that triggered the merge"
+    )
+    merged_name: str = Field(description="Name of the merged entity")
+    canonical_name: str = Field(description="Name of the canonical entity")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "merged_id": "concept-xyz789",
+                "canonical_id": "concept-abc123",
+                "merged_at": "2025-01-15T12:00:00Z",
+                "similarity_score": 0.92,
+                "merged_name": "Auth",
+                "canonical_name": "Authentication",
+            }
+        }
+    }
+
+
+class DeduplicationStatsResponse(BaseResponse):
+    """Statistics about entity deduplication."""
+
+    total_merges: int = Field(description="Total number of merge operations")
+    avg_similarity: float = Field(description="Average similarity score of merges")
+    unique_canonical_ids: int = Field(
+        description="Number of unique canonical entities with merges"
+    )
+    recent_merges: list[MergeRecordResponse] = Field(
+        default_factory=list, description="Recent merge operations"
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "success": True,
+                "total_merges": 45,
+                "avg_similarity": 0.89,
+                "unique_canonical_ids": 30,
+                "recent_merges": [
+                    {
+                        "merged_id": "concept-xyz",
+                        "canonical_id": "concept-abc",
+                        "merged_at": "2025-01-15T12:00:00Z",
+                        "similarity_score": 0.92,
+                        "merged_name": "Auth",
+                        "canonical_name": "Authentication",
+                    }
+                ],
             }
         }
     }

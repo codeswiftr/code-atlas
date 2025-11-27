@@ -30,7 +30,12 @@ def get_graph_populator(
     settings: Annotated[AtlasSettings, Depends(get_settings)]
 ) -> GraphPopulator:
     """Get graph populator instance."""
-    return GraphPopulator(settings)
+    return GraphPopulator(
+        graph_name="code_atlas",
+        redis_url="redis://localhost:6379",
+        dry_run=False,
+        create_indexes=settings.create_db_indexes,
+    )
 
 
 async def verify_api_key(

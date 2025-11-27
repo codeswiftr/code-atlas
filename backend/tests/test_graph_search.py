@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -61,18 +61,6 @@ class TestSearchEndpoint:
     """Tests for the search API endpoint."""
 
     @pytest.fixture
-    def client(self, monkeypatch: pytest.MonkeyPatch) -> TestClient:
-        """Create test client with API key auth disabled."""
-        monkeypatch.setenv("CODE_ATLAS_API_KEY_REQUIRED", "false")
-
-        from code_atlas.api.main import create_app
-        from code_atlas.config import AtlasSettings
-
-        settings = AtlasSettings()
-        app = create_app(settings)
-        return TestClient(app)
-
-    @pytest.fixture
     def mock_graph(self) -> Mock:
         """Create a mock graph populator."""
         mock = Mock()
@@ -96,45 +84,54 @@ class TestSearchEndpoint:
         ]
         return mock
 
+    @pytest.fixture
+    def client(self, monkeypatch: pytest.MonkeyPatch, mock_graph: Mock) -> TestClient:
+        """Create test client with API key auth disabled and mocked graph."""
+        monkeypatch.setenv("CODE_ATLAS_API_KEY_REQUIRED", "false")
+
+        from code_atlas.api.main import create_app
+        from code_atlas.api.dependencies import get_graph_populator
+        from code_atlas.config import AtlasSettings
+
+        settings = AtlasSettings()
+        app = create_app(settings)
+
+        # Override the graph populator dependency
+        app.dependency_overrides[get_graph_populator] = lambda: mock_graph
+
+        return TestClient(app)
+
     def test_search_exact_match_high_score(
         self, client: TestClient, mock_graph: Mock
     ) -> None:
         """Exact matches score high."""
-        with patch(
-            "code_atlas.api.dependencies.get_graph_populator",
-            return_value=mock_graph,
-        ):
-            response = client.get(
-                "/api/v1/graph/entities/search",
-                params={"q": "Authentication"},
-            )
+        response = client.get(
+            "/api/v1/graph/entities/search",
+            params={"q": "Authentication"},
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["total"] >= 1
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] >= 1
 
-            # First result should be exact match with high score
-            if data["results"]:
-                top_result = data["results"][0]
-                assert top_result["score"] >= 0.9
+        # First result should be exact match with high score
+        if data["results"]:
+            top_result = data["results"][0]
+            assert top_result["score"] >= 0.9
 
     def test_search_fuzzy_finds_typos(
         self, client: TestClient, mock_graph: Mock
     ) -> None:
         """Fuzzy search finds typos."""
-        with patch(
-            "code_atlas.api.dependencies.get_graph_populator",
-            return_value=mock_graph,
-        ):
-            response = client.get(
-                "/api/v1/graph/entities/search",
-                params={"q": "Authntication", "fuzzy": True, "min_score": 0.5},
-            )
+        response = client.get(
+            "/api/v1/graph/entities/search",
+            params={"q": "Authntication", "fuzzy": True, "min_score": 0.5},
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            # Should find "Authentication" despite typo
-            # (depends on fuzzy threshold)
+        assert response.status_code == 200
+        data = response.json()
+        # Should find "Authentication" despite typo
+        # (depends on fuzzy threshold)
 
     def test_search_filters_by_entity_type(
         self, client: TestClient, mock_graph: Mock
@@ -148,129 +145,101 @@ class TestSearchEndpoint:
             },
         ]
 
-        with patch(
-            "code_atlas.api.dependencies.get_graph_populator",
-            return_value=mock_graph,
-        ):
-            response = client.get(
-                "/api/v1/graph/entities/search",
-                params={"q": "auth", "type": "Concept"},
-            )
+        response = client.get(
+            "/api/v1/graph/entities/search",
+            params={"q": "auth", "type": "Concept"},
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            # All results should be Concepts
-            for result in data["results"]:
-                assert result["entity"]["type"] == "Concept"
+        assert response.status_code == 200
+        data = response.json()
+        # All results should be Concepts
+        for result in data["results"]:
+            assert result["entity"]["type"] == "Concept"
 
     def test_search_returns_empty_for_no_matches(
         self, client: TestClient, mock_graph: Mock
     ) -> None:
         """Unknown query returns empty."""
-        with patch(
-            "code_atlas.api.dependencies.get_graph_populator",
-            return_value=mock_graph,
-        ):
-            response = client.get(
-                "/api/v1/graph/entities/search",
-                params={"q": "xyznonexistent", "min_score": 0.9},
-            )
+        response = client.get(
+            "/api/v1/graph/entities/search",
+            params={"q": "xyznonexistent", "min_score": 0.9},
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["total"] == 0
-            assert data["results"] == []
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["results"] == []
 
     def test_search_ranks_by_relevance(
         self, client: TestClient, mock_graph: Mock
     ) -> None:
         """Best matches first."""
-        with patch(
-            "code_atlas.api.dependencies.get_graph_populator",
-            return_value=mock_graph,
-        ):
-            response = client.get(
-                "/api/v1/graph/entities/search",
-                params={"q": "auth"},
-            )
+        response = client.get(
+            "/api/v1/graph/entities/search",
+            params={"q": "auth"},
+        )
 
-            assert response.status_code == 200
-            data = response.json()
+        assert response.status_code == 200
+        data = response.json()
 
-            if len(data["results"]) >= 2:
-                scores = [r["score"] for r in data["results"]]
-                # Scores should be descending
-                assert scores == sorted(scores, reverse=True)
+        if len(data["results"]) >= 2:
+            scores = [r["score"] for r in data["results"]]
+            # Scores should be descending
+            assert scores == sorted(scores, reverse=True)
 
     def test_search_endpoint_returns_scores(
         self, client: TestClient, mock_graph: Mock
     ) -> None:
         """API includes relevance scores."""
-        with patch(
-            "code_atlas.api.dependencies.get_graph_populator",
-            return_value=mock_graph,
-        ):
-            response = client.get(
-                "/api/v1/graph/entities/search",
-                params={"q": "auth"},
-            )
+        response = client.get(
+            "/api/v1/graph/entities/search",
+            params={"q": "auth"},
+        )
 
-            assert response.status_code == 200
-            data = response.json()
+        assert response.status_code == 200
+        data = response.json()
 
-            for result in data["results"]:
-                assert "score" in result
-                assert 0.0 <= result["score"] <= 1.0
+        for result in data["results"]:
+            assert "score" in result
+            assert 0.0 <= result["score"] <= 1.0
 
     def test_search_includes_timing(
         self, client: TestClient, mock_graph: Mock
     ) -> None:
         """Response includes execution time."""
-        with patch(
-            "code_atlas.api.dependencies.get_graph_populator",
-            return_value=mock_graph,
-        ):
-            response = client.get(
-                "/api/v1/graph/entities/search",
-                params={"q": "test"},
-            )
+        response = client.get(
+            "/api/v1/graph/entities/search",
+            params={"q": "test"},
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "took_ms" in data
-            assert data["took_ms"] >= 0
+        assert response.status_code == 200
+        data = response.json()
+        assert "took_ms" in data
+        assert data["took_ms"] >= 0
 
     def test_search_respects_limit(
         self, client: TestClient, mock_graph: Mock
     ) -> None:
         """Limit parameter works."""
-        with patch(
-            "code_atlas.api.dependencies.get_graph_populator",
-            return_value=mock_graph,
-        ):
-            response = client.get(
-                "/api/v1/graph/entities/search",
-                params={"q": "a", "limit": 2, "min_score": 0.1},
-            )
+        response = client.get(
+            "/api/v1/graph/entities/search",
+            params={"q": "a", "limit": 2, "min_score": 0.1},
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert len(data["results"]) <= 2
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["results"]) <= 2
 
     def test_search_non_fuzzy_requires_substring(
         self, client: TestClient, mock_graph: Mock
     ) -> None:
         """Non-fuzzy search requires exact substring."""
-        with patch(
-            "code_atlas.api.dependencies.get_graph_populator",
-            return_value=mock_graph,
-        ):
-            response = client.get(
-                "/api/v1/graph/entities/search",
-                params={"q": "Authntication", "fuzzy": False},
-            )
+        response = client.get(
+            "/api/v1/graph/entities/search",
+            params={"q": "Authntication", "fuzzy": False},
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            # With fuzzy=False, typo shouldn't match
-            assert data["total"] == 0
+        assert response.status_code == 200
+        data = response.json()
+        # With fuzzy=False, typo shouldn't match
+        assert data["total"] == 0

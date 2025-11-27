@@ -34,8 +34,11 @@ class GraphPopulator:
     index_timeout: int = 30
     verify_indexes_after_creation: bool = True
     metrics: AtlasMetrics | None = None
+    enable_deduplication: bool = False
+    similarity_threshold: float = 0.85
     client: redis.Redis | None = field(init=False, default=None)
     executed_queries: list[str] = field(init=False, default_factory=list)
+    _resolver: object | None = field(init=False, default=None)
 
     # Predefined indexes for production performance
     INDEXES: ClassVar[dict[str, list[str]]] = {
@@ -85,6 +88,17 @@ class GraphPopulator:
             self._ensure_indexes()
             if self.verify_indexes_after_creation:
                 self._verify_index_creation()
+
+    @property
+    def entity_resolver(self):
+        """Lazily create entity resolver for deduplication."""
+        if self._resolver is None and self.enable_deduplication:
+            from .entity_resolver import EntityResolver
+            self._resolver = EntityResolver(
+                graph=self,
+                similarity_threshold=self.similarity_threshold,
+            )
+        return self._resolver
 
     def upsert(self, session: ParsedSession, extraction: ExtractionResult) -> None:
         # Record session node creation
@@ -161,8 +175,20 @@ class GraphPopulator:
     def _entity_queries(
         self, session_id: str, entity: Entity, extraction: ExtractionResult
     ) -> tuple[list[str], str]:
-        node_id = _hash(entity.name)
         label = entity.type.capitalize()
+
+        # Use entity resolver for deduplication if enabled
+        if self.enable_deduplication and self.entity_resolver:
+            node_id, is_existing = self.entity_resolver.resolve(label, entity.name)
+            if is_existing:
+                logger.debug(
+                    "Resolved entity to existing",
+                    entity_name=entity.name,
+                    resolved_id=node_id,
+                )
+        else:
+            node_id = _hash(entity.name)
+
         metadata_assignments = ", ".join(
             f"e.{key}={_quote(str(value))}" for key, value in entity.metadata.items()
         )
