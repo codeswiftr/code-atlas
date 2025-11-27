@@ -3,7 +3,7 @@
 ## Stack Snapshot
 - **Language**: Python 3.11+
 - **Runtime**: Poetry/uv-managed env, Docker for services
-- **LLM Providers**: Anthropic Claude (default), Local Llama 3.3 70B via Ollama fallback
+- **LLM Providers**: Anthropic Claude (default), OpenRouter (via LiteLLM), Local Llama 3.3 70B via Ollama fallback
 - **Knowledge Graph**: FalkorDB (Redis protocol), optional Neo4j adapter
 - **Task Orchestration**: Asyncio workers + optional Celery for large batches
 - **Monitoring**: Prometheus + Grafana, OpenTelemetry traces
@@ -25,16 +25,19 @@
   - Mitigation: Provide migration path to Neo4j via exporter script before public GA.
 
 ## ADR-002 · LLM Extraction Strategy
-- **Status**: Accepted · 2025-11-12
+- **Status**: Accepted · 2025-11-12, Updated 2025-01-16
 - **Context**: Need structured entity/relationship extraction with controllable cost and privacy guarantees.
 - **Options**:
   1. Anthropic Claude Sonnet – high quality, moderate cost.
   2. Claude Haiku – cheaper, slightly lower fidelity.
-  3. Local Llama 3.3 70B via Ollama – zero marginal cost, heavier infra.
-- **Decision**: Default to **Claude Sonnet** for production pipelines; expose configuration to switch to Haiku or local models. Provide redaction + chunking to keep request cost <$0.02/session.
+  3. OpenRouter (via LiteLLM) – access to multiple models (Grok, Llama, etc.) with unified API.
+  4. Local Llama 3.3 70B via Ollama – zero marginal cost, heavier infra.
+- **Decision**: Default to **Claude Sonnet** for production pipelines; support **OpenRouter** via LiteLLM for model flexibility and cost optimization. Expose configuration to switch between providers. Provide redaction + chunking to keep request cost <$0.02/session.
 - **Consequences**:
   - ✅ High accuracy out-of-box; fewer false relations.
+  - ✅ Multi-provider support enables cost optimization and model selection flexibility.
   - ⚠️ Requires API key management + spend monitoring.
+  - ⚠️ OpenRouter pricing varies by model; use LiteLLM's cost tracking for accurate estimates.
   - Mitigation: Implement usage quotas + fallback path; document how to run offline with Llama.
 
 ## ADR-003 · Streaming Parser vs Bulk Load

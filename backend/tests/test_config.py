@@ -114,6 +114,11 @@ class TestEnvironmentOverrides:
         config_file = tmp_path / "test.toml"
         config_file.write_text(sample_toml)
 
+        # Clear any existing CODE_ATLAS env vars that could interfere
+        for key in list(os.environ.keys()):
+            if key.startswith("CODE_ATLAS_"):
+                monkeypatch.delenv(key, raising=False)
+
         # Set env var that conflicts with TOML
         monkeypatch.setenv("CODE_ATLAS_MAX_SESSION_MB", "200")
         monkeypatch.setenv("CODE_ATLAS_MAX_COST_PER_SESSION", "0.10")
@@ -137,8 +142,13 @@ class TestEnvironmentOverrides:
         assert settings.claude_root == Path("/custom/path")
         assert settings.max_session_size_mb == 150
 
-    def test_no_env_no_toml_uses_defaults(self) -> None:
+    def test_no_env_no_toml_uses_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that defaults work when no TOML or env vars."""
+        # Clear any existing CODE_ATLAS env vars
+        for key in list(os.environ.keys()):
+            if key.startswith("CODE_ATLAS_"):
+                monkeypatch.delenv(key, raising=False)
+
         settings = AtlasSettings()
 
         assert settings.claude_root == Path("~/.claude/projects").expanduser()

@@ -92,8 +92,8 @@ def test_extractor_respects_session_cost_limit() -> None:
     # Create a cost guard with very low session limit
     cost_guard = CostGuard(max_session=0.00001, max_cumulative=1.0)
 
-    # Create extractor with mocked client
-    extractor = InsightExtractor(use_llm=False)
+    # Create extractor with mocked client (use_llm=True, provider=anthropic for LLM path)
+    extractor = InsightExtractor(use_llm=True, provider="anthropic")
     extractor.client = Mock()  # Mock client to enable LLM path
     extractor.cost_guard = cost_guard
 
@@ -116,7 +116,7 @@ def test_extractor_records_cost_after_extraction() -> None:
     """Test that InsightExtractor records actual cost with cost guard."""
     cost_guard = CostGuard(max_session=1.0, max_cumulative=10.0)
 
-    extractor = InsightExtractor(use_llm=False)
+    extractor = InsightExtractor(use_llm=True, provider="anthropic")
     extractor.client = Mock()
     extractor.cost_guard = cost_guard
 
@@ -167,9 +167,9 @@ def test_pipeline_initializes_cost_guard() -> None:
         max_cumulative_cost_usd=5.0,
     )
 
-    # Create extractor with mocked client
-    extractor = InsightExtractor(use_llm=False)
-    extractor.client = Mock()  # Enable LLM mode
+    # Create extractor with LLM enabled (required for cost guard initialization)
+    extractor = InsightExtractor(use_llm=True, provider="anthropic")
+    extractor.client = Mock()  # Mock client
 
     # Create minimal pipeline
     discovery = Mock(spec=SessionDiscovery)

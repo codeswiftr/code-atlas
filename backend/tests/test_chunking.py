@@ -282,7 +282,7 @@ def test_merge_extractions_empty() -> None:
 
 def test_large_session_triggers_chunking() -> None:
     """Test that large sessions automatically trigger chunking."""
-    extractor = InsightExtractor(use_llm=False)
+    extractor = InsightExtractor(use_llm=True, provider="anthropic")
     extractor.client = Mock()
 
     # Create large session (>12K tokens)
@@ -314,7 +314,7 @@ def test_large_session_triggers_chunking() -> None:
 
 def test_small_session_no_chunking() -> None:
     """Test that small sessions do not trigger chunking."""
-    extractor = InsightExtractor(use_llm=False)
+    extractor = InsightExtractor(use_llm=True, provider="anthropic")
     extractor.client = Mock()
 
     # Create small session (<12K tokens)

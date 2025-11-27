@@ -57,8 +57,8 @@ class PipelineRunner:
     def __post_init__(self) -> None:
         """Initialize cost guard and metrics if settings provided."""
         if self.settings:
-            # Initialize cost guard if extractor uses LLM
-            if self.extractor.client:
+            # Initialize cost guard if extractor uses LLM (any provider)
+            if self.extractor.provider:
                 cost_guard = CostGuard(
                     max_session=self.settings.max_cost_per_session_usd,
                     max_cumulative=self.settings.max_cumulative_cost_usd,

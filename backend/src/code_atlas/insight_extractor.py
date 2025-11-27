@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from anthropic import Anthropic, APIError
+from litellm import completion, completion_cost
 from pydantic import BaseModel, Field, ValidationError
 
 from .exceptions import CostLimitExceeded
@@ -20,6 +21,7 @@ from .models import ParsedSession, SessionMessage
 logger = get_logger(__name__)
 
 EntityType = Literal["concept", "file", "tool", "problem", "solution"]
+LLMProvider = Literal["anthropic", "openrouter"]
 
 # Anthropic pricing as of 2025 (per 1M tokens)
 # Source: https://www.anthropic.com/api
@@ -89,29 +91,111 @@ class InsightExtractor:
 
     model: str = "claude-3-5-sonnet-latest"
     use_llm: bool | None = None
+    provider: LLMProvider | None = None
     cost_guard: CostGuard | None = None
     metrics: AtlasMetrics | None = None
+    client: Anthropic | None = None
+    openrouter_api_key: str | None = None
+    openrouter_model: str | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
     def __post_init__(self) -> None:
-        api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN")
-        base_url = os.getenv("ANTHROPIC_BASE_URL")
-        configured_model = os.getenv("ANTHROPIC_MODEL")
-        if configured_model:
-            self.model = configured_model
+        # Check if user passed an explicit model (different from default)
+        default_model = "claude-3-5-sonnet-latest"
+        user_provided_model = self.model != default_model
 
-        wants_llm = self.use_llm if self.use_llm is not None else bool(api_key)
-        if wants_llm and api_key:
-            client_kwargs: dict[str, Any] = {"api_key": api_key}
-            if base_url:
-                client_kwargs["base_url"] = base_url
-            self.client = Anthropic(**client_kwargs)
-        else:
+        # Determine provider
+        provider = self.provider or os.getenv("CODE_ATLAS_LLM_PROVIDER", "anthropic").lower()
+        if provider not in ("anthropic", "openrouter"):
+            logger.warning(
+                f"Invalid provider '{provider}', defaulting to 'anthropic'",
+                provider=provider,
+            )
+            provider = "anthropic"
+
+        # Get API keys
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN")
+        openrouter_key = self.openrouter_api_key or os.getenv("OPENROUTER_API_KEY")
+
+        # Get model configuration from env vars
+        configured_model = os.getenv("ANTHROPIC_MODEL")
+        openrouter_model = self.openrouter_model or os.getenv("OPENROUTER_MODEL")
+        openrouter_base = os.getenv("CODE_ATLAS_OPENROUTER_BASE_URL", self.openrouter_base_url)
+
+        # Provider selection logic
+        if provider == "openrouter":
+            if openrouter_key:
+                self.provider = "openrouter"
+                self.openrouter_api_key = openrouter_key
+                self.openrouter_base_url = openrouter_base
+                # Only override model if user didn't provide one explicitly
+                if not user_provided_model:
+                    if openrouter_model:
+                        self.model = openrouter_model
+                    elif not configured_model:
+                        # Default OpenRouter model if none specified
+                        self.model = "x-ai/grok-4.1-fast"
+                self.client = None  # LiteLLM doesn't need a client object
+            else:
+                logger.warning(
+                    "OpenRouter provider selected but OPENROUTER_API_KEY not found, "
+                    "falling back to Anthropic or heuristics",
+                )
+                provider = "anthropic"
+
+        if provider == "anthropic":
+            if anthropic_key:
+                self.provider = "anthropic"
+                base_url = os.getenv("ANTHROPIC_BASE_URL")
+                # Only override model from env if user didn't provide one explicitly
+                if configured_model and not user_provided_model:
+                    self.model = configured_model
+                client_kwargs: dict[str, Any] = {"api_key": anthropic_key}
+                if base_url:
+                    client_kwargs["base_url"] = base_url
+                self.client = Anthropic(**client_kwargs)
+            else:
+                self.client = None
+                self.provider = None
+
+        # Fallback: if provider not explicitly set, try to auto-detect
+        if not self.provider:
+            if openrouter_key:
+                self.provider = "openrouter"
+                self.openrouter_api_key = openrouter_key
+                self.openrouter_base_url = openrouter_base
+                # Only override model if user didn't provide one explicitly
+                if not user_provided_model:
+                    if openrouter_model:
+                        self.model = openrouter_model
+                    elif not configured_model:
+                        # Default OpenRouter model if none specified
+                        self.model = "x-ai/grok-4.1-fast"
+                self.client = None
+            elif anthropic_key:
+                self.provider = "anthropic"
+                base_url = os.getenv("ANTHROPIC_BASE_URL")
+                # Only override model from env if user didn't provide one explicitly
+                if configured_model and not user_provided_model:
+                    self.model = configured_model
+                client_kwargs = {"api_key": anthropic_key}
+                if base_url:
+                    client_kwargs["base_url"] = base_url
+                self.client = Anthropic(**client_kwargs)
+            else:
+                self.provider = None
+                self.client = None
+
+        # Determine if LLM should be used
+        wants_llm = self.use_llm if self.use_llm is not None else bool(self.provider)
+        if not wants_llm:
+            self.provider = None
             self.client = None
 
     def extract(self, session: ParsedSession) -> ExtractionResult:
         # Record extraction request
         if self.metrics:
-            method = "llm" if self.client else "heuristic"
+            method = "llm" if self.provider else "heuristic"
             self.metrics.record_extraction_request(method, self.model)
 
         # Time the extraction
@@ -120,10 +204,17 @@ class InsightExtractor:
         )
 
         with context_manager:
-            if self.client:
+            if self.provider:
                 try:
                     return self._call_llm_with_retry(session)
-                except (APIError, json.JSONDecodeError, ValueError, ValidationError, CostLimitExceeded) as exc:
+                except (
+                    APIError,
+                    json.JSONDecodeError,
+                    ValueError,
+                    ValidationError,
+                    CostLimitExceeded,
+                    Exception,
+                ) as exc:
                     # Record error metrics
                     if self.metrics:
                         self.metrics.record_error("extraction", type(exc).__name__)
@@ -134,6 +225,7 @@ class InsightExtractor:
                         session_id=session.metadata.session_id,
                         error=str(exc),
                         error_type=type(exc).__name__,
+                        provider=self.provider,
                     )
 
                     # Record fallback extraction
@@ -149,20 +241,51 @@ class InsightExtractor:
         from contextlib import nullcontext
         return nullcontext()
 
-    def _calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
-        """Calculate API cost based on actual token usage and model pricing."""
-        # Determine pricing based on model name
-        if "haiku" in self.model.lower():
+    def _calculate_cost(
+        self, input_tokens: int, output_tokens: int, response: Any | None = None
+    ) -> float:
+        """Calculate API cost based on actual token usage and model pricing.
+        
+        For OpenRouter, uses LiteLLM's completion_cost if response is provided.
+        For Anthropic, uses hardcoded pricing constants.
+        """
+        if self.provider == "openrouter" and response is not None:
+            # Use LiteLLM's built-in cost calculation for OpenRouter
+            try:
+                cost = completion_cost(completion_response=response)
+                return round(cost, 6)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to calculate cost using LiteLLM, falling back to estimation",
+                    error=str(exc),
+                    model=self.model,
+                )
+                # Fall through to estimation
+
+        # Anthropic pricing or model-based estimation
+        # Use Anthropic pricing when provider is "anthropic" or None (for testing/heuristic mode)
+        if self.provider in ("anthropic", None):
+            # Determine pricing based on model name
+            if "haiku" in self.model.lower():
+                input_cost_per_1m = CLAUDE_HAIKU_INPUT_COST
+                output_cost_per_1m = CLAUDE_HAIKU_OUTPUT_COST
+            else:  # Default to Sonnet pricing
+                input_cost_per_1m = CLAUDE_SONNET_INPUT_COST
+                output_cost_per_1m = CLAUDE_SONNET_OUTPUT_COST
+
+            cost = (input_tokens / 1_000_000 * input_cost_per_1m) + (
+                output_tokens / 1_000_000 * output_cost_per_1m
+            )
+            return round(cost, 6)
+        else:
+            # OpenRouter fallback: use a conservative estimate
+            # Most OpenRouter models are cheaper than Claude, so use Haiku pricing as estimate
             input_cost_per_1m = CLAUDE_HAIKU_INPUT_COST
             output_cost_per_1m = CLAUDE_HAIKU_OUTPUT_COST
-        else:  # Default to Sonnet pricing
-            input_cost_per_1m = CLAUDE_SONNET_INPUT_COST
-            output_cost_per_1m = CLAUDE_SONNET_OUTPUT_COST
-
-        cost = (input_tokens / 1_000_000 * input_cost_per_1m) + (
-            output_tokens / 1_000_000 * output_cost_per_1m
-        )
-        return round(cost, 6)  # Round to 6 decimal places for precision
+            cost = (input_tokens / 1_000_000 * input_cost_per_1m) + (
+                output_tokens / 1_000_000 * output_cost_per_1m
+            )
+            return round(cost, 6)
 
     def _validate_schema(self, data: dict) -> ExtractionResult:
         """Validate LLM response against expected schema using Pydantic."""
@@ -221,7 +344,7 @@ class InsightExtractor:
         for attempt in range(max_retries):
             try:
                 return self._call_llm(session)
-            except APIError as exc:
+            except (APIError, Exception) as exc:
                 last_exception = exc
                 if attempt < max_retries - 1:
                     # Exponential backoff: 1s, 2s, 4s
@@ -234,6 +357,7 @@ class InsightExtractor:
                         wait_time_seconds=wait_time,
                         error=str(exc),
                         error_type=type(exc).__name__,
+                        provider=self.provider,
                     )
                     time.sleep(wait_time)
                 else:
@@ -243,6 +367,7 @@ class InsightExtractor:
                         max_retries=max_retries,
                         error=str(exc),
                         error_type=type(exc).__name__,
+                        provider=self.provider,
                     )
                     raise
 
@@ -304,6 +429,16 @@ class InsightExtractor:
         return self._calculate_cost(estimated_input_tokens, estimated_output_tokens)
 
     def _call_llm(self, session: ParsedSession) -> ExtractionResult:
+        """Route to appropriate provider's LLM call method."""
+        if self.provider == "anthropic":
+            return self._call_anthropic(session)
+        elif self.provider == "openrouter":
+            return self._call_litellm(session)
+        else:
+            raise ValueError(f"Unknown provider: {self.provider}")
+
+    def _call_anthropic(self, session: ParsedSession) -> ExtractionResult:
+        """Call Anthropic API for extraction."""
         # Check cost limit before making API call
         if self.cost_guard:
             estimated_cost = self._estimate_session_cost(session)
@@ -321,6 +456,9 @@ class InsightExtractor:
                     limit=self.cost_guard.max_session,
                     limit_type="session",
                 )
+
+        if not self.client:
+            raise ValueError("Anthropic client not initialized")
 
         prompt = self._build_prompt(session)
         response = self.client.messages.create(
@@ -348,7 +486,7 @@ class InsightExtractor:
             self.metrics.record_cost(actual_cost, self.model, "api_call")
 
         logger.debug(
-            "LLM extraction completed",
+            "Anthropic extraction completed",
             session_id=session.metadata.session_id,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -361,6 +499,89 @@ class InsightExtractor:
             self.cost_guard.record(actual_cost)
 
         text = "\n".join(block.text for block in response.content if block.type == "text").strip()
+        data = json.loads(text)
+
+        # Validate schema before accepting
+        result = self._validate_schema(data)
+
+        # Update with actual cost and provenance
+        result.estimated_cost_usd = actual_cost
+        result.extracted_at = datetime.now(tz=timezone.utc).isoformat()
+        result.extractor_model = self.model
+        result.extraction_method = "llm"
+
+        return result
+
+    def _call_litellm(self, session: ParsedSession) -> ExtractionResult:
+        """Call OpenRouter API via LiteLLM for extraction."""
+        # Check cost limit before making API call
+        if self.cost_guard:
+            estimated_cost = self._estimate_session_cost(session)
+            if not self.cost_guard.check_session(estimated_cost):
+                logger.warning(
+                    "Session cost exceeds limit, falling back to heuristics",
+                    session_id=session.metadata.session_id,
+                    estimated_cost_usd=estimated_cost,
+                    max_cost_usd=self.cost_guard.max_session,
+                )
+                raise CostLimitExceeded(
+                    f"Estimated session cost ${estimated_cost:.6f} exceeds limit "
+                    f"${self.cost_guard.max_session:.2f}",
+                    current_cost=estimated_cost,
+                    limit=self.cost_guard.max_session,
+                    limit_type="session",
+                )
+
+        if not self.openrouter_api_key:
+            raise ValueError("OpenRouter API key not initialized")
+
+        prompt = self._build_prompt(session)
+
+        # Use LiteLLM to call OpenRouter
+        # Model format: can be "x-ai/grok-4.1-fast" or "openrouter/x-ai/grok-4.1-fast"
+        model_name = self.model
+        if not model_name.startswith("openrouter/"):
+            model_name = f"openrouter/{model_name}"
+
+        response = completion(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            api_key=self.openrouter_api_key,
+            base_url=self.openrouter_base_url,
+            max_tokens=1024,
+            temperature=0,
+        )
+
+        # Extract response text
+        text = response.choices[0].message.content.strip()
+
+        # Extract token usage
+        input_tokens = getattr(response.usage, "prompt_tokens", 0) if hasattr(response, "usage") else 0
+        output_tokens = (
+            getattr(response.usage, "completion_tokens", 0) if hasattr(response, "usage") else 0
+        )
+
+        # Calculate cost using LiteLLM's cost tracking
+        actual_cost = self._calculate_cost(input_tokens, output_tokens, response=response)
+
+        # Record cost metrics
+        if self.metrics:
+            self.metrics.record_cost(actual_cost, self.model, "api_call")
+
+        logger.debug(
+            "OpenRouter extraction completed",
+            session_id=session.metadata.session_id,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=actual_cost,
+            model=self.model,
+        )
+
+        # Record actual cost with cost guard
+        if self.cost_guard:
+            self.cost_guard.record(actual_cost)
+
+        # Parse JSON response
         data = json.loads(text)
 
         # Validate schema before accepting

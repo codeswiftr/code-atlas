@@ -11,6 +11,7 @@ dependencies = [
     "anthropic>=0.30.0",
     "fastapi>=0.115.0",
     "httpx>=0.26.0",
+    "litellm>=1.0.0",
     "pathspec>=0.12.1",
     "prometheus-client>=0.21.0",
     "psutil>=6.0.0",
