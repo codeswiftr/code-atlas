@@ -13,6 +13,7 @@ from ..logging_config import get_logger
 from ..metrics import init_metrics
 from .middleware import RateLimitMiddleware
 from .v1 import admin_router, graph_router, sessions_router
+from ..websocket import websocket_job_updates
 
 logger = get_logger(__name__)
 
@@ -103,15 +104,17 @@ X-API-Key: your-api-key-here
         # Add CORS middleware
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=self.settings.cors_origins if hasattr(self.settings, 'cors_origins') else ["*"],
+            allow_origins=self.settings.cors_origins
+            if hasattr(self.settings, "cors_origins")
+            else ["*"],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
         )
 
         # Add rate limiting middleware
-        rate_limit = getattr(self.settings, 'rate_limit_per_minute', 100)
-        admin_rate_limit = getattr(self.settings, 'admin_rate_limit_per_minute', 1000)
+        rate_limit = getattr(self.settings, "rate_limit_per_minute", 100)
+        admin_rate_limit = getattr(self.settings, "admin_rate_limit_per_minute", 1000)
         app.add_middleware(
             RateLimitMiddleware,
             requests_per_minute=rate_limit,
@@ -139,6 +142,9 @@ X-API-Key: your-api-key-here
         app.include_router(sessions_router, prefix="/api/v1")
         app.include_router(graph_router, prefix="/api/v1")
         app.include_router(admin_router, prefix="/api/v1")
+
+        # Add WebSocket route
+        app.websocket("/ws/jobs/{job_id}")(websocket_job_updates)
 
         # Add monitoring routes
         self._setup_monitoring_routes(app)
