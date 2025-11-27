@@ -141,6 +141,20 @@ class AtlasSettings(BaseSettings):
         description="Allowed CORS origins.",
         alias="CODE_ATLAS_CORS_ORIGINS",
     )
+    rate_limit_per_minute: int = Field(
+        default=100,
+        ge=1,
+        le=10000,
+        description="Rate limit for standard API keys (requests per minute).",
+        alias="CODE_ATLAS_RATE_LIMIT",
+    )
+    admin_rate_limit_per_minute: int = Field(
+        default=1000,
+        ge=1,
+        le=100000,
+        description="Rate limit for admin API keys (requests per minute).",
+        alias="CODE_ATLAS_ADMIN_RATE_LIMIT",
+    )
 
     @property
     def session_root(self) -> Path:

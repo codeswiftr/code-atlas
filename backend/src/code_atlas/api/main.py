@@ -11,6 +11,7 @@ import psutil
 from ..config import AtlasSettings
 from ..logging_config import get_logger
 from ..metrics import init_metrics
+from .middleware import RateLimitMiddleware
 from .v1 import sessions_router, graph_router
 
 logger = get_logger(__name__)
@@ -102,6 +103,15 @@ X-API-Key: your-api-key-here
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
+        )
+
+        # Add rate limiting middleware
+        rate_limit = getattr(self.settings, 'rate_limit_per_minute', 100)
+        admin_rate_limit = getattr(self.settings, 'admin_rate_limit_per_minute', 1000)
+        app.add_middleware(
+            RateLimitMiddleware,
+            requests_per_minute=rate_limit,
+            admin_requests_per_minute=admin_rate_limit,
         )
 
         # Add request logging middleware

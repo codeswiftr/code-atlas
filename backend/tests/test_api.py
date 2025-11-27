@@ -527,3 +527,44 @@ class TestCORS:
         )
         # OPTIONS might return 200 or 405 depending on config
         assert response.status_code in [200, 405]
+
+
+class TestRateLimiting:
+    """Tests for rate limiting."""
+
+    @pytest.fixture
+    def rate_limited_client(self):
+        """Create client with low rate limit for testing."""
+        settings = AtlasSettings(
+            claude_root=Path(tempfile.gettempdir()),
+            api_key_required=False,
+            enable_metrics=False,
+            rate_limit_per_minute=5,  # Very low for testing
+        )
+        app = create_app(settings)
+        return TestClient(app)
+
+    def test_rate_limit_headers(self, client):
+        """Test rate limit headers are present."""
+        response = client.get("/api/v1/sessions")
+        assert "X-RateLimit-Limit" in response.headers
+        assert "X-RateLimit-Remaining" in response.headers
+
+    def test_rate_limit_exceeded(self, rate_limited_client):
+        """Test rate limit is enforced."""
+        # Make requests up to the limit
+        for i in range(5):
+            response = rate_limited_client.get("/api/v1/sessions")
+            assert response.status_code == 200
+
+        # Next request should be rate limited
+        response = rate_limited_client.get("/api/v1/sessions")
+        assert response.status_code == 429
+        assert "Rate limit exceeded" in response.json()["detail"]
+
+    def test_rate_limit_skips_health_endpoints(self, rate_limited_client):
+        """Test that health endpoints are not rate limited."""
+        # Make many requests to health endpoint
+        for _ in range(10):
+            response = rate_limited_client.get("/health")
+            assert response.status_code == 200

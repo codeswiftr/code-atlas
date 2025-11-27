@@ -5,11 +5,14 @@ Convert Claude Code session logs into a searchable knowledge graph.
 ## Features
 
 - 🔍 **Automatic Discovery** - Scans ~/.claude/projects for session files
-- 🧠 **LLM-Powered Extraction** - Uses Claude API to extract entities & relationships
+- 🧠 **LLM-Powered Extraction** - Uses Anthropic Claude or OpenRouter APIs to extract entities & relationships
 - 💰 **Cost Controls** - Enforces spending limits ($0.02/session default)
 - 📊 **Knowledge Graph** - Stores in FalkorDB for powerful queries
 - 🔄 **Retry Logic** - Exponential backoff with error quarantine
 - 📦 **Token Chunking** - Handles large sessions (>12K tokens)
+- 🔌 **Multi-Provider Support** - Supports Anthropic Claude and OpenRouter (via LiteLLM)
+- 🌐 **REST API** - Full API for session management and graph queries
+- 🛡️ **Rate Limiting** - Built-in rate limiting with configurable limits
 
 ## Quick Start
 
@@ -17,7 +20,9 @@ Convert Claude Code session logs into a searchable knowledge graph.
 
 - **Python 3.11+** (for tomllib support)
 - **Docker** (for FalkorDB)
-- **Anthropic API key** (optional, falls back to heuristics)
+- **LLM API key** (optional, falls back to heuristics):
+  - **Anthropic API key** (`ANTHROPIC_API_KEY`) for Claude models
+  - **OpenRouter API key** (`OPENROUTER_API_KEY`) for OpenRouter models
 
 ### Installation
 
@@ -52,7 +57,9 @@ claude_root = "~/.claude/projects"
 
 [extraction]
 use_llm = true
-model = "claude-3-5-sonnet-latest"
+llm_provider = "openrouter"  # or "anthropic"
+openrouter_model = "x-ai/grok-4.1-fast"  # for OpenRouter
+model = "claude-3-5-sonnet-latest"  # for Anthropic
 max_cost_per_session_usd = 0.02
 
 [graph]
@@ -64,7 +71,16 @@ max_cumulative_cost_usd = 10.0
 
 Or use environment variables:
 ```bash
+# For Anthropic
 export ANTHROPIC_API_KEY=sk-ant-...
+export CODE_ATLAS_LLM_PROVIDER=anthropic
+
+# For OpenRouter
+export OPENROUTER_API_KEY=sk-or-...
+export OPENROUTER_MODEL=x-ai/grok-4.1-fast
+export CODE_ATLAS_LLM_PROVIDER=openrouter
+
+# Common settings
 export CODE_ATLAS_CLAUDE_ROOT=~/.claude/projects
 export CODE_ATLAS_MAX_SESSION_MB=50
 ```
@@ -80,8 +96,11 @@ uv run code-atlas discover --limit 10
 # Run pipeline (dry-run mode - no database writes)
 uv run code-atlas run --dry-run --limit 5
 
-# Run with real extraction and database writes
-uv run code-atlas run --no-dry-run --use-llm --limit 10
+# Run with real extraction and database writes (Anthropic)
+uv run code-atlas run --no-dry-run --use-llm --provider anthropic --limit 10
+
+# Run with OpenRouter
+uv run code-atlas run --no-dry-run --use-llm --provider openrouter --limit 10
 
 # Use custom config file
 uv run code-atlas run --config prod.toml --limit 100
@@ -106,11 +125,103 @@ uv run code-atlas run --dry-run --limit 3
 uv run code-atlas run --no-dry-run --no-use-llm --limit 10
 
 # 5. Run with LLM extraction (higher quality)
-uv run code-atlas run --no-dry-run --use-llm --limit 10
+# Using Anthropic
+uv run code-atlas run --no-dry-run --use-llm --provider anthropic --limit 10
+
+# Or using OpenRouter
+uv run code-atlas run --no-dry-run --use-llm --provider openrouter --limit 10
 
 # 6. View results
 uv run code-atlas report
 ```
+
+## REST API
+
+Code Atlas provides a full REST API for programmatic access to session management and knowledge graph queries.
+
+### Starting the API Server
+
+```bash
+# Start API server
+uv run code-atlas serve
+
+# With custom host/port
+uv run code-atlas serve --host 0.0.0.0 --port 8080
+
+# With hot reload (development)
+uv run code-atlas serve --reload
+
+# With multiple workers (production)
+uv run code-atlas serve --workers 4
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/sessions/discover` | GET | Discover available sessions |
+| `/api/v1/sessions/process` | POST | Process sessions (background) |
+| `/api/v1/sessions/{session_id}/status` | GET | Get processing status |
+| `/api/v1/sessions` | GET | List processed sessions |
+| `/api/v1/sessions/stats` | GET | Get session statistics |
+| `/api/v1/graph/entities` | GET | Search entities |
+| `/api/v1/graph/relationships` | GET | Query relationships |
+| `/api/v1/graph/query` | POST | Execute Cypher query |
+| `/api/v1/graph/visualization` | GET | Get D3.js/Cytoscape data |
+| `/api/v1/graph/stats` | GET | Get graph statistics |
+
+### Authentication
+
+Set `CODE_ATLAS_API_KEY_REQUIRED=true` to require API keys:
+
+```bash
+# Enable authentication
+export CODE_ATLAS_API_KEY_REQUIRED=true
+export CODE_ATLAS_ADMIN_API_KEY=your-admin-key-here
+
+# Make authenticated requests
+curl -H "X-API-Key: your-api-key" http://localhost:8000/api/v1/sessions
+```
+
+### Rate Limiting
+
+Built-in rate limiting protects the API:
+- **Standard keys**: 100 requests/minute
+- **Admin keys**: 1000 requests/minute
+
+Configure in `.code-atlas.toml`:
+```toml
+[api]
+rate_limit_per_minute = 100
+admin_rate_limit_per_minute = 1000
+```
+
+### Example Requests
+
+```bash
+# Discover sessions
+curl http://localhost:8000/api/v1/sessions/discover?limit=10
+
+# Process sessions
+curl -X POST http://localhost:8000/api/v1/sessions/process \
+  -H "Content-Type: application/json" \
+  -d '{"session_ids": ["session-123"], "use_llm": true}'
+
+# Query entities
+curl "http://localhost:8000/api/v1/graph/entities?entity_type=Concept&limit=20"
+
+# Execute Cypher query
+curl -X POST http://localhost:8000/api/v1/graph/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "MATCH (n:Concept) RETURN n LIMIT 10"}'
+
+# Get visualization data
+curl "http://localhost:8000/api/v1/graph/visualization?format=d3"
+```
+
+### Interactive Documentation
+
+Access Swagger UI at `http://localhost:8000/docs` or ReDoc at `http://localhost:8000/redoc`.
 
 ## Testing
 
