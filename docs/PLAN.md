@@ -848,3 +848,477 @@ After beta launch (target: 2 weeks):
 - [x] Deployment checklist created (see [DEPLOYMENT.md](DEPLOYMENT.md))
 - [ ] End-to-end validation in clean environment
 - [ ] Beta launch deployment and smoke tests
+
+---
+
+## Phase 2.1 Soft Launch: Detailed Implementation Plan
+
+**Sprint Goal**: Complete missing API functionality for Soft Launch readiness
+**Timeline**: Week of 2025-11-27
+**Status**: 🚀 IN PROGRESS
+
+### Overview
+
+Based on codebase analysis, four critical gaps need addressing before Soft Launch:
+
+| Epic | Gap | Current State | Target State |
+|------|-----|---------------|--------------|
+| 1 | Job Persistence | In-memory `_jobs` dict | SQLite-backed job store |
+| 2 | API Key Management | Single admin key check | Full CRUD with scoped permissions |
+| 3 | Full-Text Search | Basic CONTAINS on name | FalkorDB full-text index |
+| 4 | Entity Deduplication | No deduplication | Similarity detection + merge |
+
+---
+
+### Epic 1: Job Persistence System (Priority: CRITICAL)
+
+**Problem**: Processing jobs stored in `_jobs` dict (`api/v1/sessions.py:31`) are lost on server restart.
+
+**Solution**: SQLite-backed job store with async persistence.
+
+#### Files to Change
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `backend/src/code_atlas/job_store.py` | NEW | SQLite job persistence layer |
+| `backend/src/code_atlas/api/v1/sessions.py` | MODIFY | Replace `_jobs` dict with JobStore |
+| `backend/src/code_atlas/schemas/sessions.py` | MODIFY | Add job serialization methods |
+| `backend/tests/test_job_store.py` | NEW | Job store unit tests |
+
+#### Functions to Implement
+
+**`job_store.py` (NEW FILE)**
+
+```python
+class JobStore:
+    """SQLite-backed job persistence with async operations."""
+
+    def __init__(self, db_path: Path | None = None):
+        """Initialize job store with SQLite connection.
+        Creates tables if they don't exist. Uses in-memory DB if no path provided.
+        """
+
+    async def save(self, job: ProcessingJob) -> None:
+        """Persist job state to SQLite.
+        Upserts job by job_id, serializes stats dict as JSON.
+        """
+
+    async def get(self, job_id: str) -> ProcessingJob | None:
+        """Retrieve job by ID.
+        Returns None if job not found, deserializes JSON stats.
+        """
+
+    async def list_jobs(
+        self, status: JobStatus | None = None, limit: int = 20
+    ) -> list[ProcessingJob]:
+        """List jobs with optional status filter.
+        Ordered by created_at descending.
+        """
+
+    async def update_status(
+        self, job_id: str, status: JobStatus, **kwargs
+    ) -> None:
+        """Update job status and optional fields.
+        Atomic update for concurrent access safety.
+        """
+
+    async def cleanup_old_jobs(self, days: int = 7) -> int:
+        """Remove completed/failed jobs older than N days.
+        Returns count of deleted jobs.
+        """
+```
+
+**`api/v1/sessions.py` (MODIFY)**
+
+```python
+# Line 31: Replace _jobs dict
+def get_job_store() -> JobStore:
+    """Dependency to get singleton JobStore instance."""
+
+# Modify all job access to use JobStore
+async def get_job_status(...) -> SessionProcessResponse:
+    """Now uses job_store.get() instead of _jobs[job_id]."""
+```
+
+#### Tests to Implement
+
+**`tests/test_job_store.py` (NEW FILE)**
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_job_store_save_and_retrieve` | Jobs persist across store instances |
+| `test_job_store_list_with_status_filter` | Filter by pending/running/completed |
+| `test_job_store_update_status_atomic` | Concurrent updates don't corrupt |
+| `test_job_store_cleanup_old_jobs` | Expired jobs removed, recent kept |
+| `test_job_store_handles_missing_job` | Returns None for unknown job_id |
+| `test_job_store_serializes_stats_dict` | Complex stats dict round-trips |
+
+#### Acceptance Criteria
+- [ ] Jobs survive server restart
+- [ ] Job status queryable after restart
+- [ ] Old jobs auto-cleanup works
+- [ ] No performance regression (<10ms per operation)
+
+---
+
+### Epic 2: API Key Management (Priority: CRITICAL)
+
+**Problem**: Only single admin key check in `dependencies.py:54-56` with TODO comment. No key generation, revocation, or scoped permissions.
+
+**Solution**: Full API key management system with SQLite storage.
+
+#### Files to Change
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `backend/src/code_atlas/auth/api_keys.py` | NEW | API key generation and storage |
+| `backend/src/code_atlas/api/v1/admin.py` | NEW | Admin endpoints for key management |
+| `backend/src/code_atlas/api/dependencies.py` | MODIFY | Use APIKeyManager for validation |
+| `backend/src/code_atlas/schemas/auth.py` | NEW | API key schemas |
+| `backend/tests/test_api_keys.py` | NEW | API key management tests |
+
+#### Functions to Implement
+
+**`auth/api_keys.py` (NEW FILE)**
+
+```python
+class APIKeyManager:
+    """Manages API key lifecycle with SQLite storage."""
+
+    def __init__(self, db_path: Path | None = None):
+        """Initialize with SQLite connection.
+        Creates api_keys table if not exists.
+        """
+
+    def generate_key(
+        self, name: str, scopes: list[str], expires_in_days: int | None = None
+    ) -> tuple[str, APIKeyRecord]:
+        """Generate new API key with prefix 'cat_'.
+        Returns (raw_key, record). Raw key shown once, hashed for storage.
+        """
+
+    def validate_key(self, raw_key: str) -> APIKeyRecord | None:
+        """Validate API key and return record if valid.
+        Checks hash, expiration, and active status.
+        """
+
+    def has_scope(self, record: APIKeyRecord, required_scope: str) -> bool:
+        """Check if key has required scope.
+        Scopes: 'read', 'write', 'admin', 'process'.
+        """
+
+    def revoke_key(self, key_id: str) -> bool:
+        """Revoke API key by ID.
+        Sets is_active=False, keeps record for audit.
+        """
+
+    def list_keys(self, include_revoked: bool = False) -> list[APIKeyRecord]:
+        """List all API keys.
+        Excludes revoked by default.
+        """
+
+    def record_usage(self, key_id: str) -> None:
+        """Record API key usage for rate limiting.
+        Increments request_count, updates last_used_at.
+        """
+```
+
+**`api/v1/admin.py` (NEW FILE)**
+
+```python
+router = APIRouter(prefix="/admin", tags=["Admin"])
+
+@router.post("/keys", response_model=APIKeyCreateResponse)
+async def create_api_key(request: APIKeyCreateRequest) -> APIKeyCreateResponse:
+    """Generate new API key.
+    Returns raw key ONCE - must be saved by caller.
+    """
+
+@router.get("/keys", response_model=list[APIKeyInfo])
+async def list_api_keys() -> list[APIKeyInfo]:
+    """List all active API keys.
+    Excludes raw key values, shows metadata only.
+    """
+
+@router.delete("/keys/{key_id}")
+async def revoke_api_key(key_id: str) -> None:
+    """Revoke API key by ID.
+    Key immediately becomes invalid.
+    """
+
+@router.get("/keys/{key_id}/usage", response_model=APIKeyUsageStats)
+async def get_key_usage(key_id: str) -> APIKeyUsageStats:
+    """Get usage statistics for API key.
+    Shows request counts, rate limit status.
+    """
+```
+
+**`api/dependencies.py` (MODIFY)**
+
+```python
+# Line 36-62: Replace simple check with APIKeyManager
+async def verify_api_key(
+    x_api_key: str | None = Header(None),
+    key_manager: APIKeyManager = Depends(get_key_manager),
+) -> APIKeyRecord:
+    """Verify API key using APIKeyManager.
+    Records usage, checks scopes, enforces rate limits.
+    """
+```
+
+#### Tests to Implement
+
+**`tests/test_api_keys.py` (NEW FILE)**
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_generate_key_returns_prefixed_key` | Key starts with 'cat_' prefix |
+| `test_validate_key_rejects_invalid` | Invalid keys return None |
+| `test_validate_key_rejects_expired` | Expired keys fail validation |
+| `test_revoke_key_invalidates_immediately` | Revoked keys fail validation |
+| `test_scopes_enforced_correctly` | 'read' scope can't write |
+| `test_usage_tracking_increments` | Each request increments count |
+| `test_list_keys_excludes_revoked_by_default` | Revoked hidden unless requested |
+| `test_admin_create_key_endpoint` | API returns raw key once |
+| `test_admin_list_keys_hides_raw_values` | Response has no raw keys |
+
+#### Acceptance Criteria
+- [ ] API keys can be generated with scopes
+- [ ] Keys validated on every request
+- [ ] Revoked keys rejected immediately
+- [ ] Usage tracking works
+- [ ] Admin endpoints require admin scope
+
+---
+
+### Epic 3: Full-Text Entity Search (Priority: HIGH)
+
+**Problem**: Current search uses basic `CONTAINS` (`graph.py:108`), no fuzzy matching or relevance ranking.
+
+**Solution**: FalkorDB full-text index with relevance-scored search.
+
+#### Files to Change
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `backend/src/code_atlas/graph_populator.py` | MODIFY | Add full-text index creation |
+| `backend/src/code_atlas/api/v1/graph.py` | MODIFY | Add search endpoint with ranking |
+| `backend/src/code_atlas/schemas/graph.py` | MODIFY | Add search result schema |
+| `backend/tests/test_graph_search.py` | NEW | Full-text search tests |
+
+#### Functions to Implement
+
+**`graph_populator.py` (MODIFY)**
+
+```python
+def _ensure_fulltext_index(self) -> None:
+    """Create full-text index on entity names if not exists.
+    Uses FalkorDB's RediSearch integration.
+    Index covers: Session.title, Concept.name, File.path, Tool.name.
+    """
+
+def search_entities_fulltext(
+    self, query: str, entity_types: list[EntityType] | None = None, limit: int = 20
+) -> list[tuple[dict, float]]:
+    """Full-text search with relevance scores.
+    Returns list of (entity_dict, score) tuples.
+    Uses FT.SEARCH for fuzzy matching and scoring.
+    """
+```
+
+**`api/v1/graph.py` (MODIFY)**
+
+```python
+@router.get("/entities/search", response_model=EntitySearchResponse)
+async def search_entities(
+    q: str = Query(..., min_length=1, max_length=200),
+    entity_type: EntityType | None = None,
+    fuzzy: bool = Query(default=True, description="Enable fuzzy matching"),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> EntitySearchResponse:
+    """Full-text search across entity names.
+    Returns relevance-ranked results with scores.
+    Supports fuzzy matching for typo tolerance.
+    """
+```
+
+**`schemas/graph.py` (MODIFY)**
+
+```python
+class EntitySearchResult(BaseModel):
+    """Search result with relevance score."""
+    entity: EntityResponse
+    score: float  # 0.0 to 1.0 relevance
+    highlights: list[str]  # Matched text snippets
+
+class EntitySearchResponse(BaseModel):
+    """Full-text search response."""
+    results: list[EntitySearchResult]
+    total: int
+    query: str
+    took_ms: float
+```
+
+#### Tests to Implement
+
+**`tests/test_graph_search.py` (NEW FILE)**
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_fulltext_index_created_on_startup` | Index exists after graph init |
+| `test_search_exact_match_high_score` | Exact matches score > 0.9 |
+| `test_search_fuzzy_finds_typos` | "authentcation" finds "authentication" |
+| `test_search_filters_by_entity_type` | Type filter limits results |
+| `test_search_returns_empty_for_no_matches` | Unknown query returns empty |
+| `test_search_ranks_by_relevance` | Best matches first |
+| `test_search_endpoint_returns_scores` | API includes relevance scores |
+
+#### Acceptance Criteria
+- [ ] Full-text index created automatically
+- [ ] Fuzzy search finds typos
+- [ ] Results ranked by relevance
+- [ ] Search < 100ms for 10K entities
+- [ ] Type filtering works
+
+---
+
+### Epic 4: Entity Deduplication (Priority: MEDIUM)
+
+**Problem**: Same entity extracted from multiple sessions creates duplicates. No merge or similarity detection.
+
+**Solution**: Entity resolver with similarity detection and merge logic.
+
+#### Files to Change
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `backend/src/code_atlas/entity_resolver.py` | NEW | Similarity detection and merge |
+| `backend/src/code_atlas/graph_populator.py` | MODIFY | Use resolver before insert |
+| `backend/src/code_atlas/schemas/graph.py` | MODIFY | Add merge tracking fields |
+| `backend/tests/test_entity_resolver.py` | NEW | Deduplication tests |
+
+#### Functions to Implement
+
+**`entity_resolver.py` (NEW FILE)**
+
+```python
+class EntityResolver:
+    """Detects and resolves duplicate entities across sessions."""
+
+    def __init__(self, graph: GraphPopulator, similarity_threshold: float = 0.85):
+        """Initialize with graph connection and similarity threshold.
+        Threshold 0.85 means 85% similar names are considered duplicates.
+        """
+
+    def find_similar(
+        self, entity_type: str, name: str, limit: int = 5
+    ) -> list[tuple[str, str, float]]:
+        """Find existing entities similar to name.
+        Returns list of (entity_id, existing_name, similarity_score).
+        Uses Levenshtein distance for comparison.
+        """
+
+    def resolve_entity(
+        self, entity_type: str, name: str, properties: dict
+    ) -> tuple[str, bool]:
+        """Resolve entity to existing or new ID.
+        Returns (entity_id, is_new). If similar exists, returns existing ID.
+        """
+
+    def merge_entities(
+        self, primary_id: str, duplicate_ids: list[str]
+    ) -> MergeResult:
+        """Merge duplicate entities into primary.
+        Transfers relationships, combines properties, tracks provenance.
+        Returns MergeResult with affected relationship count.
+        """
+
+    def get_merge_history(self, entity_id: str) -> list[MergeEvent]:
+        """Get merge history for entity.
+        Shows what entities were merged into this one.
+        """
+```
+
+**`graph_populator.py` (MODIFY)**
+
+```python
+def _create_entity_with_resolution(
+    self, entity_type: str, name: str, properties: dict
+) -> str:
+    """Create entity with duplicate resolution.
+    Checks for similar existing entities before creating new.
+    """
+
+def get_resolver(self) -> EntityResolver:
+    """Get entity resolver instance.
+    Lazy initialization, shared across operations.
+    """
+```
+
+#### Tests to Implement
+
+**`tests/test_entity_resolver.py` (NEW FILE)**
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_find_similar_exact_match` | Exact name returns 1.0 similarity |
+| `test_find_similar_case_insensitive` | "Auth" matches "auth" |
+| `test_find_similar_typo_tolerance` | "authetication" matches "authentication" |
+| `test_resolve_uses_existing_for_similar` | 90% similar returns existing ID |
+| `test_resolve_creates_new_below_threshold` | 50% similar creates new entity |
+| `test_merge_transfers_relationships` | Merged entity has all relationships |
+| `test_merge_tracks_provenance` | Merge history preserved |
+| `test_merge_history_queryable` | Can retrieve merge chain |
+
+#### Acceptance Criteria
+- [ ] Similar entities detected (85% threshold)
+- [ ] Duplicates merged, not created
+- [ ] Relationships preserved after merge
+- [ ] Merge history tracked
+- [ ] No data loss during merge
+
+---
+
+### Implementation Order
+
+```
+Week 1 (Nov 27-Dec 1):
+├── Epic 1: Job Persistence (Day 1-2) - CRITICAL for restart resilience
+│   ├── job_store.py
+│   ├── sessions.py modifications
+│   └── tests
+└── Epic 2: API Key Management (Day 3-5) - CRITICAL for security
+    ├── api_keys.py
+    ├── admin.py endpoints
+    └── tests
+
+Week 2 (Dec 2-6):
+├── Epic 3: Full-Text Search (Day 1-2) - HIGH for usability
+│   ├── fulltext index
+│   ├── search endpoint
+│   └── tests
+└── Epic 4: Entity Deduplication (Day 3-5) - MEDIUM for data quality
+    ├── entity_resolver.py
+    ├── graph_populator changes
+    └── tests
+```
+
+### Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| Job persistence | 100% jobs survive restart |
+| API key validation | < 5ms per request |
+| Search response time | < 100ms for 10K entities |
+| Deduplication accuracy | > 95% correct merges |
+| Test coverage | > 80% for new code |
+
+---
+
+### Definition of Done (Soft Launch)
+
+- [ ] All 4 epics implemented with tests
+- [ ] API documentation updated
+- [ ] No regression in existing tests
+- [ ] Performance targets met
+- [ ] Security review completed
