@@ -122,7 +122,8 @@ class PipelineRunner:
         # Time the pipeline processing
         context_manager = (
             self.metrics.time_pipeline_processing(meta.project)
-            if self.metrics else self._null_context_manager()
+            if self.metrics
+            else self._null_context_manager()
         )
 
         with context_manager:
@@ -185,8 +186,10 @@ class PipelineRunner:
                             error=str(exc),
                             error_type=type(exc).__name__,
                         )
-                        console.print(f"[red]Failed processing {meta.session_id} after "
-                                      f"{self.config.max_retries} attempts: {exc}[/]")
+                        console.print(
+                            f"[red]Failed processing {meta.session_id} after "
+                            f"{self.config.max_retries} attempts: {exc}[/]"
+                        )
                         self._quarantine_session(meta, last_exception)
                         stats.sessions_quarantined += 1
                 finally:
@@ -197,6 +200,7 @@ class PipelineRunner:
     def _null_context_manager(self):
         """Null context manager for when metrics are disabled."""
         from contextlib import nullcontext
+
         return nullcontext()
 
     def _quarantine_session(self, meta, exception: Exception) -> None:
@@ -257,5 +261,75 @@ class PipelineRunner:
                 self.metrics.record_cost(
                     extraction.estimated_cost_usd,
                     extraction.extractor_model or "unknown",
-                    "extraction"
+                    "extraction",
                 )
+
+    def process_session(
+        self, session_path: Path, use_llm: bool = True, dry_run: bool = False
+    ) -> dict:
+        """Process a single session and return results.
+
+        Args:
+            session_path: Path to session file
+            use_llm: Whether to use LLM extraction
+            dry_run: Whether to perform dry run (no database writes)
+
+        Returns:
+            Dictionary with processing results
+        """
+        from .session_discovery import SessionDiscovery
+
+        logger.info(
+            "Processing single session",
+            session_path=str(session_path),
+            use_llm=use_llm,
+            dry_run=dry_run,
+        )
+
+        try:
+            # Create session discovery and metadata
+            discovery = SessionDiscovery(root=session_path.parent, settings=self.settings)
+            meta = discovery._build_metadata(session_path)
+
+            # Parse session
+            parsed = SessionParser(metadata=meta).parse()
+
+            # Extract insights
+            if use_llm and not dry_run:
+                extraction = self.extractor.extract(parsed)
+            else:
+                # Use heuristic extraction for dry run or when LLM disabled
+                extraction = self.extractor._heuristic_extract(parsed)
+
+            # Populate graph (skip if dry run)
+            if not dry_run:
+                self.populator.upsert(parsed, extraction)
+
+            # Return results
+            return {
+                "success": True,
+                "session_id": meta.session_id,
+                "entities_created": len(extraction.entities),
+                "relationships_created": len(extraction.relationships),
+                "cost_usd": extraction.estimated_cost_usd,
+                "messages_processed": len(parsed.messages),
+                "extraction_method": "llm" if use_llm else "heuristics",
+            }
+
+        except Exception as exc:
+            logger.error(
+                "Single session processing failed",
+                session_path=str(session_path),
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+
+            return {
+                "success": False,
+                "session_path": str(session_path),
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "entities_created": 0,
+                "relationships_created": 0,
+                "cost_usd": 0.0,
+            }

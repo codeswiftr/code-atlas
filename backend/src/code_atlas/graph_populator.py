@@ -198,6 +198,125 @@ class GraphPopulator:
             return f"MATCH ({alias} {{id:{_quote(entity_ids[name])}}})"
         return f"MATCH ({alias} {{id:{_quote(_hash(name))}}})"
 
+    def execute_query(self, query: str, params: dict | None = None) -> list[dict]:
+        """Execute a read query and return results as list of dicts.
+
+        Args:
+            query: Cypher query to execute
+            params: Query parameters (substituted into query)
+
+        Returns:
+            List of result rows as dictionaries
+        """
+        # Substitute parameters into query
+        if params:
+            for key, value in params.items():
+                placeholder = f"${key}"
+                if isinstance(value, str):
+                    query = query.replace(placeholder, _quote(value))
+                else:
+                    query = query.replace(placeholder, str(value))
+
+        self.executed_queries.append(query)
+
+        if not self.client:
+            logger.debug("Dry run query", query=query)
+            return []
+
+        # Time the query execution
+        context_manager = (
+            self.metrics.time_db_query("read") if self.metrics else self._null_context_manager()
+        )
+
+        with context_manager:
+            logger.debug(
+                "Executing read query",
+                graph_name=self.graph_name,
+                query=query,
+            )
+            try:
+                result = self.client.execute_command("GRAPH.QUERY", self.graph_name, query)
+                return self._parse_result(result)
+            except redis.RedisError as exc:
+                if self.metrics:
+                    self.metrics.record_error("database", type(exc).__name__)
+                logger.error(
+                    "Failed to execute read query",
+                    graph_name=self.graph_name,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                raise exc
+
+    def _parse_result(self, result) -> list[dict]:
+        """Parse FalkorDB result into list of dictionaries."""
+        if not result or len(result) < 2:
+            return []
+
+        # FalkorDB returns [header, data, stats]
+        header = result[0]
+        data = result[1]
+
+        if not header or not data:
+            return []
+
+        # Extract column names from header
+        columns = []
+        for col in header:
+            if isinstance(col, (list, tuple)) and len(col) >= 2:
+                columns.append(col[1])  # Column name is second element
+            elif isinstance(col, str):
+                columns.append(col)
+            else:
+                columns.append(str(col))
+
+        # Build result dictionaries
+        rows = []
+        for row in data:
+            row_dict = {}
+            for i, value in enumerate(row):
+                if i < len(columns):
+                    col_name = columns[i]
+                    row_dict[col_name] = self._parse_value(value)
+            rows.append(row_dict)
+
+        return rows
+
+    def _parse_value(self, value):
+        """Parse a FalkorDB value into Python type."""
+        if value is None:
+            return None
+
+        # Node format: [type_code, [id, labels, properties]]
+        if isinstance(value, (list, tuple)):
+            if len(value) >= 2 and isinstance(value[0], int):
+                type_code = value[0]
+                data = value[1]
+
+                # Type 1 = Node
+                if type_code == 1 and isinstance(data, (list, tuple)) and len(data) >= 3:
+                    node_id, labels, props = data[0], data[1], data[2]
+                    result = {}
+                    if isinstance(props, (list, tuple)):
+                        for prop in props:
+                            if isinstance(prop, (list, tuple)) and len(prop) >= 2:
+                                key = prop[0]
+                                val = prop[1] if len(prop) == 2 else prop[2]
+                                result[key] = val
+                    return result
+
+                # Type 7 = Scalar/Array
+                if type_code == 7 and isinstance(data, (list, tuple)):
+                    return [self._parse_value(v) for v in data]
+
+                # Other scalar types
+                return data
+
+            # Plain array
+            return [self._parse_value(v) for v in value]
+
+        return value
+
     def _execute(self, query: str) -> None:
         self.executed_queries.append(query)
         if self.client:

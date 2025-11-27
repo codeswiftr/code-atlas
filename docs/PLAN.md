@@ -851,11 +851,503 @@ After beta launch (target: 2 weeks):
 
 ---
 
-## Phase 2.1 Soft Launch: Detailed Implementation Plan
+## Phase 2.2 Web Frontend & Production Readiness: Detailed Implementation Plan
 
-**Sprint Goal**: Complete missing API functionality for Soft Launch readiness
-**Timeline**: Week of 2025-11-27
-**Status**: 🚀 IN PROGRESS
+**Sprint Goal**: Complete web frontend and production deployment for Soft Launch readiness
+**Timeline**: 4 weeks starting 2025-11-27
+**Status**: 📋 PLANNING
+
+### Current State Assessment
+
+**Phase 1.5 (Foundational Stability)**: ✅ **COMPLETE**
+- Core CLI pipeline functional with 82% test coverage
+- Structured logging, metrics, and monitoring implemented
+- FalkorDB integration with performance optimization
+
+**Phase 2.1 (REST API + Authentication)**: 🚧 **PARTIALLY COMPLETE**
+- ✅ Session management API with job persistence
+- ✅ Graph query API with visualization endpoints
+- ✅ API key management system
+- ✅ Rate limiting and authentication middleware
+- ❌ No frontend implementation (critical gap)
+- ❌ Missing WebSocket real-time updates
+- ❌ No production deployment automation
+
+### Overall Readiness: 70%
+
+| Category | Status | Score |
+|----------|--------|-------|
+| Core Pipeline | Complete | 100% |
+| REST API | Partial | 85% |
+| Authentication | Partial | 80% |
+| Web Frontend | Not Started | 0% |
+| Deployment | Partial | 40% |
+| Documentation | Complete | 90% |
+| Testing | Complete | 82% coverage |
+
+---
+
+## Epic 1: Basic Web Frontend (Priority: CRITICAL)
+**Timeline**: Week 1-2 (Nov 27 - Dec 4)
+**Goal**: Create minimal React UI for core functionality
+
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `frontend/package.json` | Node.js project configuration |
+| `frontend/tsconfig.json` | TypeScript configuration |
+| `frontend/src/index.tsx` | React application entry point |
+| `frontend/src/App.tsx` | Main application component |
+| `frontend/src/pages/Home.tsx` | Landing page with value proposition |
+| `frontend/src/pages/Sessions.tsx` | Session discovery and management |
+| `frontend/src/pages/Graph.tsx` | Graph visualization interface |
+| `frontend/src/components/ui/` | Base UI components |
+| `frontend/src/components/graph/` | Graph visualization components |
+| `frontend/src/api/client.ts` | API client with TanStack Query |
+| `frontend/src/styles/tokens.css` | Design system tokens |
+
+### Functions to Implement
+
+**`frontend/src/api/client.ts` (NEW FILE)**
+```typescript
+export class CodeAtlasAPIClient {
+  /** Initialize API client with base URL and authentication */
+  constructor(baseURL: string, apiKey?: string)
+
+  /** Discover available sessions with filters */
+  async discoverSessions(request: SessionDiscoveryRequest): Promise<SessionDiscoveryResponse>
+
+  /** Submit sessions for processing */
+  async processSessions(request: SessionProcessRequest): Promise<SessionProcessResponse>
+
+  /** Get processing job status */
+  async getJobStatus(jobId: string): Promise<SessionProcessResponse>
+
+  /** List entities with pagination and filters */
+  async listEntities(params: EntityListParams): Promise<EntityListResponse>
+
+  /** Search entities with fuzzy matching */
+  async searchEntities(query: string, params?: SearchParams): Promise<EntitySearchResponse>
+
+  /** Get graph visualization data */
+  async getVisualization(params: VisualizationParams): Promise<GraphVisualizationResponse>
+
+  /** Execute Cypher query (read-only) */
+  async executeQuery(query: string, params?: QueryParams): Promise<GraphQueryResponse>
+}
+```
+
+**`frontend/src/pages/Sessions.tsx` (NEW FILE)**
+```typescript
+export function SessionsPage() {
+  /** Main sessions page component */
+  const [sessions, setSessions] = useState<SessionInfo[]>([])
+  const [jobs, setJobs] = useState<ProcessingJob[]>([])
+  const [loading, setLoading] = useState(false)
+
+  /** Load discovered sessions from API */
+  const loadSessions = async () => {}
+
+  /** Submit selected sessions for processing */
+  const processSessions = async (sessionPaths: string[]) => {}
+
+  /** Poll for job status updates */
+  const pollJobStatus = async (jobId: string) => {}
+
+  return (
+    <div className="sessions-page">
+      {/* Session discovery interface */}
+      {/* Processing job management */}
+      {/* Status indicators and progress */}
+    </div>
+  )
+}
+```
+
+**`frontend/src/pages/Graph.tsx` (NEW FILE)**
+```typescript
+export function GraphPage() {
+  /** Main graph visualization page */
+  const [graphData, setGraphData] = useState<GraphVisualizationResponse>()
+  const [selectedEntity, setSelectedEntity] = useState<EntityResponse>()
+  const [searchQuery, setSearchQuery] = useState("")
+
+  /** Load graph data for visualization */
+  const loadGraphData = async (params: VisualizationParams) => {}
+
+  /** Handle entity selection in graph */
+  const handleEntitySelect = (entityId: string) => {}
+
+  /** Search and filter entities */
+  const searchEntities = async (query: string) => {}
+
+  return (
+    <div className="graph-page">
+      {/* Search interface */}
+      {/* Graph visualization with D3.js/Cytoscape.js */}
+      {/* Entity details panel */}
+    </div>
+  )
+}
+```
+
+### Tests to Implement
+
+**`frontend/src/__tests__/api/client.test.tsx` (NEW FILE)**
+| Test Name | Behavior |
+|-----------|----------|
+| `test_api_client_initialization` | Client initializes with base URL |
+| `test_discover_sessions_api_call` | Makes correct API request |
+| `test_process_sessions_submission` | Submits sessions correctly |
+| `test_authentication_headers` | Includes API key in requests |
+| `test_error_handling` | Handles API errors gracefully |
+
+**`frontend/src/__tests__/pages/Sessions.test.tsx` (NEW FILE)**
+| Test Name | Behavior |
+|-----------|----------|
+| `test_sessions_page_renders` | Page loads without errors |
+| `test_session_discovery_works` | Discovers sessions from API |
+| `test_session_processing_submission` | Submits processing jobs |
+| `test_job_status_polling` | Polls for job updates |
+| `test_error_states_displayed` | Shows error messages |
+
+### Acceptance Criteria
+- [ ] React application builds and runs successfully
+- [ ] Can discover and process sessions via UI
+- [ ] Graph visualization renders with D3.js
+- [ ] API integration works with authentication
+- [ ] Responsive design (mobile + desktop)
+- [ ] Error states handled gracefully
+
+---
+
+## Epic 2: Real-time Updates & UX (Priority: HIGH)
+**Timeline**: Week 2-3 (Dec 5 - Dec 11)
+**Goal**: Add WebSocket support and improve user experience
+
+### Files to Change
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `backend/src/code_atlas/api/main.py` | MODIFY | Add WebSocket support |
+| `backend/src/code_atlas/api/v1/sessions.py` | MODIFY | Add WebSocket endpoints |
+| `frontend/src/api/client.ts` | MODIFY | Add WebSocket client |
+| `frontend/src/hooks/` | NEW | Custom React hooks for real-time data |
+
+### Functions to Implement
+
+**`backend/src/code_atlas/api/main.py` (MODIFY)**
+```python
+@app.websocket("/ws/jobs/{job_id}")
+async def websocket_job_updates(websocket: WebSocket, job_id: str):
+    """WebSocket endpoint for real-time job status updates."""
+    await websocket.accept()
+    
+    # Send initial job status
+    job = job_store.get(job_id)
+    await websocket.send_json({"type": "status", "job": job.dict()})
+    
+    # Listen for job updates and push to client
+    while True:
+        updated_job = job_store.get(job_id)
+        if updated_job.status != job.status:
+            await websocket.send_json({"type": "status", "job": updated_job.dict()})
+        await asyncio.sleep(1)
+```
+
+**`frontend/src/hooks/useJobStatus.ts` (NEW FILE)**
+```typescript
+export function useJobStatus(jobId: string) {
+  /** Real-time job status updates via WebSocket */
+  const [job, setJob] = useState<ProcessingJob>()
+  const [connected, setConnected] = useState(false)
+
+  /** Establish WebSocket connection */
+  useEffect(() => {
+    const ws = new WebSocket(`${wsBaseURL}/ws/jobs/${jobId}`)
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      if (data.type === 'status') {
+        setJob(data.job)
+      }
+    }
+    
+    ws.onopen = () => setConnected(true)
+    ws.onclose = () => setConnected(false)
+    
+    return () => ws.close()
+  }, [jobId])
+
+  return { job, connected }
+}
+```
+
+### Tests to Implement
+
+**`backend/tests/test_websockets.py` (NEW FILE)**
+| Test Name | Behavior |
+|-----------|----------|
+| `test_websocket_connection_established` | WebSocket connects successfully |
+| `test_job_status_updates_pushed` | Status updates sent in real-time |
+| `test_websocket_handles_disconnection` | Graceful handling of client disconnect |
+| `test_multiple_websocket_connections` | Supports concurrent connections |
+
+### Acceptance Criteria
+- [ ] WebSocket connections work for job updates
+- [ ] Real-time status updates in frontend
+- [ ] Graceful handling of connection failures
+- [ ] Loading states and progress indicators
+- [ ] Responsive user feedback
+
+---
+
+## Epic 3: Search & Data Quality (Priority: MEDIUM)
+**Timeline**: Week 3 (Dec 12 - Dec 18)
+**Goal**: Implement full-text search optimization and entity deduplication
+
+### Files to Change
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `backend/src/code_atlas/graph_populator.py` | MODIFY | Add full-text index creation |
+| `backend/src/code_atlas/entity_resolver.py` | NEW | Entity deduplication system |
+| `backend/src/code_atlas/api/v1/graph.py` | MODIFY | Enhanced search endpoints |
+| `backend/tests/test_entity_resolver.py` | NEW | Entity resolution tests |
+
+### Functions to Implement
+
+**`backend/src/code_atlas/entity_resolver.py` (NEW FILE)**
+```python
+class EntityResolver:
+    """Detects and resolves duplicate entities across sessions."""
+
+    def __init__(self, graph: GraphPopulator, similarity_threshold: float = 0.85):
+        """Initialize with graph connection and similarity threshold."""
+
+    def find_similar(self, entity_type: str, name: str, limit: int = 5) -> list[tuple[str, str, float]]:
+        """Find existing entities similar to name using Levenshtein distance."""
+
+    def resolve_entity(self, entity_type: str, name: str, properties: dict) -> tuple[str, bool]:
+        """Resolve entity to existing or new ID. Returns (entity_id, is_new)."""
+
+    def merge_entities(self, primary_id: str, duplicate_ids: list[str]) -> MergeResult:
+        """Merge duplicate entities into primary, transferring relationships."""
+```
+
+**`backend/src/code_atlas/graph_populator.py` (MODIFY)**
+```python
+def _ensure_fulltext_index(self) -> None:
+    """Create full-text index on entity names using FalkorDB RediSearch."""
+
+def search_entities_fulltext(self, query: str, entity_types: list[str] | None = None, limit: int = 20) -> list[tuple[dict, float]]:
+    """Full-text search with relevance scores using FT.SEARCH."""
+```
+
+### Tests to Implement
+
+**`backend/tests/test_entity_resolver.py` (NEW FILE)**
+| Test Name | Behavior |
+|-----------|----------|
+| `test_find_similar_exact_match` | Exact name returns 1.0 similarity |
+| `test_find_similar_case_insensitive` | "Auth" matches "auth" |
+| `test_find_similar_typo_tolerance` | "authetication" matches "authentication" |
+| `test_resolve_uses_existing_for_similar` | 90% similar returns existing ID |
+| `test_merge_transfers_relationships` | Merged entity has all relationships |
+
+### Acceptance Criteria
+- [ ] Full-text search index created automatically
+- [ ] Fuzzy search finds typos with relevance scoring
+- [ ] Entity deduplication reduces duplicates by >80%
+- [ ] Search performance < 100ms for 10K entities
+- [ ] Merge history tracked and queryable
+
+---
+
+## Epic 4: Production Hardening (Priority: HIGH)
+**Timeline**: Week 4 (Dec 19 - Dec 25)
+**Goal**: Complete deployment automation and production readiness
+
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `backend/Dockerfile` | Multi-stage production Docker build |
+| `backend/docker-compose.prod.yml` | Production Docker Compose configuration |
+| `.github/workflows/ci.yml` | Continuous integration pipeline |
+| `.github/workflows/cd.yml` | Continuous deployment pipeline |
+| `backend/scripts/health-check.sh` | Production health check script |
+| `backend/scripts/backup.sh` | Database backup script |
+
+### Functions to Implement
+
+**`backend/Dockerfile` (NEW FILE)**
+```dockerfile
+# Multi-stage build for production
+FROM python:3.11-slim as builder
+# Build dependencies and application
+
+FROM python:3.11-slim as runtime
+# Minimal runtime image with security hardening
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD python -c "import requests; requests.get('http://localhost:8000/health')"
+```
+
+**`.github/workflows/ci.yml` (NEW FILE)**
+```yaml
+name: CI Pipeline
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: uv sync
+      - name: Run tests
+        run: uv run pytest --cov=code_atlas
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+```
+
+### Tests to Implement
+
+**`backend/tests/test_production.py` (NEW FILE)**
+| Test Name | Behavior |
+|-----------|----------|
+| `test_docker_image_builds_successfully` | Docker build completes without errors |
+| `test_health_check_endpoint_accessible` | Health check responds correctly |
+| `test_production_configuration_loaded` | Production config overrides defaults |
+| `test_backup_script_works` | Database backup created successfully |
+
+### Acceptance Criteria
+- [ ] Multi-stage Docker image builds successfully
+- [ ] Production docker-compose works end-to-end
+- [ ] CI/CD pipeline runs automated tests
+- [ ] Health checks pass in production environment
+- [ ] Backup and restore procedures documented
+- [ ] Security scanning passes (no critical vulnerabilities)
+
+---
+
+## Implementation Order
+
+```
+Week 1 (Nov 27-Dec 1): Epic 1 - Basic Frontend Foundation
+├── React project setup with TypeScript
+├── API client implementation
+├── Basic routing and layout
+└── Session discovery page
+
+Week 2 (Dec 2-8): Epic 1 - Graph Visualization + Epic 2 - WebSocket Foundation
+├── Graph visualization with D3.js
+├── Entity browser and search
+├── WebSocket endpoints in backend
+└── Real-time job status updates
+
+Week 3 (Dec 9-15): Epic 2 - UX Polish + Epic 3 - Search Enhancement
+├── Loading states and error handling
+├── Full-text search optimization
+├── Entity deduplication system
+└── Performance optimization
+
+Week 4 (Dec 16-22): Epic 4 - Production Deployment
+├── Multi-stage Docker build
+├── CI/CD pipeline implementation
+├── Production configuration
+└── End-to-end deployment testing
+```
+
+---
+
+## Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| Frontend build time | < 30s |
+| Page load time | < 3s |
+| WebSocket latency | < 100ms |
+| Search response time | < 100ms |
+| Entity deduplication rate | > 80% |
+| Docker image size | < 500MB |
+| CI/CD pipeline duration | < 10 minutes |
+| Production uptime | > 99.5% |
+
+---
+
+## Definition of Done (Soft Launch Ready)
+
+### Frontend
+- [ ] React application builds and runs
+- [ ] All core functionality accessible via UI
+- [ ] Responsive design (mobile + desktop)
+- [ ] Error states handled gracefully
+- [ ] Real-time updates via WebSocket
+
+### Backend
+- [ ] All API endpoints documented and tested
+- [ ] WebSocket connections stable
+- [ ] Search performance optimized
+- [ ] Entity deduplication functional
+- [ ] Production deployment automated
+
+### Deployment
+- [ ] Multi-stage Docker build working
+- [ ] CI/CD pipeline passing
+- [ ] Health checks functional
+- [ ] Monitoring and logging active
+- [ ] Backup procedures tested
+
+---
+
+## Risk Mitigation
+
+| Risk | Mitigation |
+|------|------------|
+| Frontend complexity | Keep MVP minimal, defer advanced features |
+| WebSocket stability | Implement reconnection logic and fallbacks |
+| Search performance | Pagination and caching for large datasets |
+| Deployment issues | Comprehensive testing and rollback procedures |
+| Entity deduplication accuracy | Manual review and confidence thresholds |
+
+---
+
+## Next Steps After Sprint
+
+1. **Beta User Testing** - Recruit internal users for testing
+2. **Performance Optimization** - Based on production metrics
+3. **Feature Prioritization** - User feedback for Phase 2.3
+4. **Security Audit** - External security review
+5. **Production Launch** - Full production deployment
+
+---
+
+## Dependencies
+
+- Node.js 18+ for frontend development
+- Docker for containerization
+- GitHub Actions for CI/CD
+- FalkorDB for graph database
+- Anthropic/OpenRouter API for LLM extraction
+
+---
+
+## Summary
+
+This 4-epic plan transforms Code Atlas from a CLI tool into a complete web application ready for soft launch. The focus is on delivering a minimal but functional web interface with real-time updates, robust search capabilities, and production-ready deployment automation.
+
+**Key Deliverables**:
+- React TypeScript frontend with graph visualization
+- WebSocket real-time updates
+- Enhanced search with entity deduplication
+- Production deployment automation
+
+**Success Criteria**: Functional web application that allows users to discover, process, and explore Claude Code sessions through an intuitive interface with real-time feedback.
 
 ### Overview
 

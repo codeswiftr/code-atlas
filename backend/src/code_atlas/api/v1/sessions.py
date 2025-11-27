@@ -138,7 +138,18 @@ def _process_sessions_background(
     job_store.save(job)
 
     try:
-        runner = PipelineRunner(settings)
+        # Initialize pipeline components
+        from ...session_discovery import SessionDiscovery
+        from ...insight_extractor import InsightExtractor
+        from ...graph_populator import GraphPopulator
+
+        discovery = SessionDiscovery(root=settings.session_root)
+        extractor = InsightExtractor()
+        populator = GraphPopulator()
+
+        runner = PipelineRunner(
+            discovery=discovery, extractor=extractor, populator=populator, settings=settings
+        )
 
         for i, path_str in enumerate(session_paths):
             job.current_session = Path(path_str).name
@@ -168,9 +179,7 @@ def _process_sessions_background(
                             "total_cost_usd": 0.0,
                         }
                     job.stats["entities_created"] += result.get("entities_created", 0)
-                    job.stats["relationships_created"] += result.get(
-                        "relationships_created", 0
-                    )
+                    job.stats["relationships_created"] += result.get("relationships_created", 0)
                     job.stats["total_cost_usd"] += result.get("cost_usd", 0.0)
                 else:
                     job.failed_sessions += 1
@@ -352,9 +361,7 @@ async def get_stats(
     completed_jobs = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
 
     total_sessions = sum(j.processed_sessions for j in completed_jobs)
-    total_entities = sum(
-        (j.stats or {}).get("entities_created", 0) for j in completed_jobs
-    )
+    total_entities = sum((j.stats or {}).get("entities_created", 0) for j in completed_jobs)
     total_relationships = sum(
         (j.stats or {}).get("relationships_created", 0) for j in completed_jobs
     )

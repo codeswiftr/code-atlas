@@ -274,3 +274,66 @@ class GraphStatsResponse(BaseResponse):
     edges_by_type: dict[str, int]
     avg_connections_per_node: float
     most_connected_entities: list[EntityResponse]
+
+
+class EntitySearchResult(BaseModel):
+    """Search result with relevance score."""
+
+    entity: EntityResponse
+    score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Relevance score (1.0 = exact match)",
+    )
+    highlights: list[str] = Field(
+        default_factory=list,
+        description="Matched text snippets",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "entity": {
+                    "id": "concept-abc123",
+                    "type": "Concept",
+                    "name": "Authentication",
+                    "properties": {},
+                    "confidence": 0.95,
+                },
+                "score": 0.92,
+                "highlights": ["**Auth**entication"],
+            }
+        }
+    }
+
+
+class EntitySearchResponse(BaseResponse):
+    """Full-text search response."""
+
+    results: list[EntitySearchResult]
+    total: int
+    query: str
+    took_ms: float
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "success": True,
+                "results": [
+                    {
+                        "entity": {
+                            "id": "concept-abc",
+                            "type": "Concept",
+                            "name": "Authentication",
+                        },
+                        "score": 0.95,
+                        "highlights": ["**Auth**entication"],
+                    }
+                ],
+                "total": 1,
+                "query": "auth",
+                "took_ms": 12.5,
+            }
+        }
+    }

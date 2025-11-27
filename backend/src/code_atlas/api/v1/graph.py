@@ -1,6 +1,7 @@
 """Knowledge graph API endpoints."""
 
 import time
+from difflib import SequenceMatcher
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,6 +15,8 @@ from ...schemas.graph import (
     RelationshipType,
     EntityResponse,
     EntityListResponse,
+    EntitySearchResponse,
+    EntitySearchResult,
     RelationshipResponse,
     RelationshipListResponse,
     GraphQueryRequest,
@@ -68,6 +71,42 @@ def _parse_node_to_entity(node: dict[str, Any], node_type: str) -> EntityRespons
         created_at=created_at,
         mention_count=int(mention_count) if mention_count else 0,
     )
+
+
+def _calculate_similarity(query: str, text: str) -> float:
+    """Calculate similarity score between query and text.
+
+    Uses case-insensitive sequence matching for fuzzy comparison.
+    Returns a score between 0.0 and 1.0.
+    """
+    query_lower = query.lower()
+    text_lower = text.lower()
+
+    # Exact match
+    if query_lower == text_lower:
+        return 1.0
+
+    # Contains match (higher weight for substring matches)
+    if query_lower in text_lower:
+        # Score based on how much of the text the query covers
+        return 0.8 + (0.2 * len(query) / len(text))
+
+    # Fuzzy match using SequenceMatcher
+    return SequenceMatcher(None, query_lower, text_lower).ratio()
+
+
+def _highlight_match(query: str, text: str) -> str:
+    """Highlight matching portion of text with markdown bold."""
+    query_lower = query.lower()
+    text_lower = text.lower()
+
+    if query_lower not in text_lower:
+        return text
+
+    start = text_lower.find(query_lower)
+    end = start + len(query)
+
+    return f"{text[:start]}**{text[start:end]}**{text[end:]}"
 
 
 @router.get(
@@ -149,6 +188,113 @@ async def list_entities(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list entities: {str(exc)}",
+        )
+
+
+@router.get(
+    "/entities/search",
+    response_model=EntitySearchResponse,
+    summary="Search entities",
+    description="Full-text search across entity names with fuzzy matching and relevance scoring.",
+)
+async def search_entities(
+    graph: Graph,
+    api_key: ApiKey,
+    q: str = Query(..., min_length=1, max_length=200, description="Search query"),
+    entity_type: Annotated[EntityType | None, Query(alias="type")] = None,
+    fuzzy: bool = Query(default=True, description="Enable fuzzy matching"),
+    min_score: float = Query(default=0.3, ge=0.0, le=1.0, description="Minimum relevance score"),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> EntitySearchResponse:
+    """Full-text search across entity names.
+
+    Returns relevance-ranked results with scores.
+    Supports fuzzy matching for typo tolerance.
+    """
+    start_time = time.time()
+
+    logger.info(
+        "Searching entities",
+        query=q,
+        entity_type=entity_type,
+        fuzzy=fuzzy,
+    )
+
+    try:
+        # Build query to get all candidate entities
+        if entity_type:
+            base_query = f"MATCH (e:{entity_type.value})"
+        else:
+            base_query = "MATCH (e)"
+
+        # Get candidates (all entities or filtered by type)
+        # For efficiency, we fetch more than needed and filter client-side
+        data_query = f"{base_query} RETURN e, labels(e) as labels LIMIT 1000"
+        data_result = graph.execute_query(data_query, {})
+
+        # Score and filter results
+        scored_results: list[tuple[EntityResponse, float, list[str]]] = []
+
+        for row in data_result:
+            node = row.get("e", {})
+            labels = row.get("labels", ["Concept"])
+            node_type = labels[0] if labels else "Concept"
+
+            name = node.get("name", node.get("title", ""))
+            if not name:
+                continue
+
+            # Calculate similarity score
+            score = _calculate_similarity(q, name)
+
+            # For non-fuzzy search, require exact substring match
+            if not fuzzy and q.lower() not in name.lower():
+                continue
+
+            # Filter by minimum score
+            if score < min_score:
+                continue
+
+            entity = _parse_node_to_entity(node, node_type)
+
+            # Generate highlights
+            highlights = []
+            if q.lower() in name.lower():
+                highlights.append(_highlight_match(q, name))
+
+            scored_results.append((entity, score, highlights))
+
+        # Sort by score descending
+        scored_results.sort(key=lambda x: x[1], reverse=True)
+
+        # Apply limit
+        scored_results = scored_results[:limit]
+
+        # Build response
+        results = [
+            EntitySearchResult(
+                entity=entity,
+                score=round(score, 3),
+                highlights=highlights,
+            )
+            for entity, score, highlights in scored_results
+        ]
+
+        took_ms = (time.time() - start_time) * 1000
+
+        return EntitySearchResponse(
+            results=results,
+            total=len(results),
+            query=q,
+            took_ms=round(took_ms, 2),
+            message=f"Found {len(results)} matching entities",
+        )
+
+    except Exception as exc:
+        logger.error("Entity search failed", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search entities: {str(exc)}",
         )
 
 
