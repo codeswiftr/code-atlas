@@ -2,9 +2,12 @@
 
 ## Stack Snapshot
 - **Language**: Python 3.11+
-- **Runtime**: Poetry/uv-managed env, Docker for services
+- **Runtime**: uv-managed env, Docker for services
+- **API Framework**: FastAPI with Pydantic v2
+- **Frontend**: React 18, TypeScript, Vite, TailwindCSS
 - **LLM Providers**: Anthropic Claude (default), OpenRouter (via LiteLLM), Local Llama 3.3 70B via Ollama fallback
 - **Knowledge Graph**: FalkorDB (Redis protocol), optional Neo4j adapter
+- **Job Storage**: SQLite (persistent job state, API keys)
 - **Task Orchestration**: Asyncio workers + optional Celery for large batches
 - **Monitoring**: Prometheus + Grafana, OpenTelemetry traces
 
@@ -59,9 +62,60 @@
 - ⚠️ Engineers must learn Cypher; provide DSL snippets + helper CLI.
 
 ## ADR-005 · Deployment & Packaging
-- **Status**: Proposed · Target decision 2025-11-19
-- **Options**:
-  1. Pure CLI + `docker compose up` for FalkorDB/Redis (fastest path).
-  2. Full FastAPI service from day one with REST endpoints + UI.
-- **Recommendation**: Start CLI-first (Phase 1-2), layer FastAPI/GraphQL service in Phase 3 once ingestion proves stable.
-- **Pending Actions**: Evaluate need for multi-tenant auth, rate limiting, and secret handling before finalizing.
+- **Status**: Accepted · Updated 2025-11-27
+- **Context**: Started CLI-first (Phase 1), now moving to full API service for Phase 2.
+- **Options Evaluated**:
+  1. Pure CLI + `docker compose up` for FalkorDB/Redis (MVP path - completed).
+  2. Full FastAPI service with REST endpoints + UI (Phase 2.1).
+- **Decision**: Implemented FastAPI REST API in Phase 2.1 with React frontend.
+- **Consequences**:
+  - ✅ Full programmatic access to all features via REST API
+  - ✅ Interactive UI for session browsing and graph exploration
+  - ✅ API key authentication with scoped permissions
+  - ✅ Rate limiting middleware for production use
+  - ⚠️ Additional operational complexity (frontend deployment)
+
+## ADR-006 · Job Persistence
+- **Status**: Accepted · 2025-11-27
+- **Context**: Background processing jobs lost state on server restart; need durability.
+- **Options Considered**:
+  1. Redis for job state - simple but requires Redis running
+  2. PostgreSQL - overkill for job tracking
+  3. SQLite - lightweight, file-based, no additional dependencies
+- **Decision**: Use **SQLite** for job persistence with file-based storage.
+- **Consequences**:
+  - ✅ Jobs survive server restarts
+  - ✅ No additional service dependencies
+  - ✅ Simple backup (single file)
+  - ✅ Status tracking with timestamps and metadata
+  - ⚠️ Not suitable for multi-instance deployment without shared storage
+
+## ADR-007 · API Key Management
+- **Status**: Accepted · 2025-11-27
+- **Context**: Need secure API authentication with fine-grained permissions.
+- **Options Considered**:
+  1. JWT tokens - complex, requires refresh flow
+  2. API keys with hashing - simple, stateless validation
+  3. OAuth2 - overkill for current use case
+- **Decision**: Implement **API key system** with SHA256 hashing and scoped permissions.
+- **Consequences**:
+  - ✅ Simple integration (single header)
+  - ✅ Scoped permissions (read/write/process/admin)
+  - ✅ Rate limiting per key
+  - ✅ Usage tracking and statistics
+  - ⚠️ Keys are long-lived; consider rotation policy
+
+## ADR-008 · Frontend Technology
+- **Status**: Accepted · 2025-11-27
+- **Context**: Need web UI for session browsing, entity exploration, and graph visualization.
+- **Options Considered**:
+  1. Server-side rendering (Jinja2) - simple but limited interactivity
+  2. React + TypeScript - modern, type-safe, rich ecosystem
+  3. Vue.js - similar to React, smaller community
+- **Decision**: Use **React 18 with TypeScript**, Vite for build tooling, TailwindCSS for styling.
+- **Consequences**:
+  - ✅ Strong type safety with TypeScript
+  - ✅ Fast development with Vite HMR
+  - ✅ Utility-first CSS with TailwindCSS
+  - ✅ Rich ecosystem for graph visualization (D3.js, Cytoscape.js)
+  - ⚠️ Separate build/deploy pipeline from backend

@@ -7,7 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Beta Launch Preparation
+### Phase 2.1 Soft Launch (November 2025)
+
+#### Added - REST API
+- Full FastAPI REST API with OpenAPI documentation
+- Session management endpoints (discover, process, status, list, stats)
+- Graph query endpoints (entities, relationships, visualization, stats)
+- Admin endpoints for API key management
+- Rate limiting middleware (100 req/min standard, 1000 req/min admin)
+- CORS support for frontend integration
+
+#### Added - Job Persistence System
+- SQLite-backed job storage (`job_store.py`)
+- Jobs survive server restarts
+- Status tracking with timestamps and metadata
+- Automatic cleanup of old jobs (configurable retention)
+- Job listing with status filtering
+
+#### Added - API Key Management
+- SHA256 hashing for secure key storage
+- Scoped permissions (read, write, process, admin)
+- Rate limiting per API key
+- Usage tracking and statistics
+- Full CRUD operations via admin endpoints
+- Constant-time comparison for timing attack prevention
+
+#### Added - Full-Text Entity Search
+- Search endpoint at `GET /api/v1/graph/entities/search`
+- Fuzzy matching using SequenceMatcher for typo tolerance
+- Relevance scoring (0.0 to 1.0)
+- Markdown highlighting of matched terms
+- Filtering by entity type and minimum score
+
+#### Added - React Frontend
+- TypeScript with strict type checking
+- Vite for fast development and builds
+- TailwindCSS for utility-first styling
+- Pages: Home, Sessions, Entities, Graph
+- API client with full type definitions
+- Responsive design for desktop and mobile
+
+#### Added - Multi-Provider LLM Support
+- OpenRouter integration via LiteLLM
+- Support for Grok, Llama, Claude via unified API
+- Cost tracking across providers
+- Model selection via configuration
+
+#### Added - GraphPopulator Enhancements
+- `execute_query()` method for read operations
+- Parameter substitution in queries
+- FalkorDB result parsing to Python dicts
+- Node and relationship parsing
+
+#### Tests
+- `test_job_store.py` - 11 tests for job persistence
+- `test_api_keys.py` - 16 tests for API key management
+- `test_graph_search.py` - 17 tests for entity search
+- Total test count: 73+ tests
+
+### Beta Launch Preparation (January 2025)
 - Consolidated all documentation files
 - Created configuration templates (`.env.example`)
 - Archived outdated scaffold directories
@@ -131,17 +189,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Future Releases
 
-### Planned for 0.2.0 (Phase 2)
+### Planned for 0.2.0 (Phase 2.1) - In Progress
+- ✅ FastAPI REST API with OpenAPI docs
+- ✅ Job persistence with SQLite
+- ✅ API key management with scoped permissions
+- ✅ Full-text entity search with fuzzy matching
+- ✅ React frontend (TypeScript/Vite/TailwindCSS)
+- ⏳ Entity deduplication service
+
+### Planned for 0.3.0 (Phase 2.2)
 - Incremental ingest via file watcher
 - Advanced redaction and compliance checks
 - Prometheus metrics and Grafana dashboards
 - Batch scheduling (cron/GitHub Actions)
 - Enhanced monitoring and alerting
+- WebSocket for real-time updates
 
-### Planned for 0.3.0 (Phase 3)
-- FastAPI query service
-- Web console/UI
-- GraphRAG assistant
+### Planned for 0.4.0 (Phase 3)
+- GraphRAG assistant integration
 - Slack/MCP integration
 - Knowledge insights dashboard
+- Advanced graph analytics
+- Export/import functionality
 
