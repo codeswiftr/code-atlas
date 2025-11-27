@@ -1,9 +1,16 @@
-"""Authentication module for Code Atlas API."""
+"""Authentication module for Code Atlas API.
 
-# API key authentication is implemented in api/dependencies.py
-# This module will be expanded with:
-# - API key management (generation, storage, revocation)
-# - JWT tokens
-# - Role-based access control
+Provides API key management, validation, and scope-based access control.
+"""
 
-__all__ = []
+from .api_keys import (
+    APIKeyManager,
+    get_key_manager,
+    reset_key_manager,
+)
+
+__all__ = [
+    "APIKeyManager",
+    "get_key_manager",
+    "reset_key_manager",
+]

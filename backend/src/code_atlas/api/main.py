@@ -12,7 +12,7 @@ from ..config import AtlasSettings
 from ..logging_config import get_logger
 from ..metrics import init_metrics
 from .middleware import RateLimitMiddleware
-from .v1 import sessions_router, graph_router
+from .v1 import admin_router, graph_router, sessions_router
 
 logger = get_logger(__name__)
 
@@ -90,6 +90,10 @@ X-API-Key: your-api-key-here
                     "description": "Query and visualize the knowledge graph",
                 },
                 {
+                    "name": "Admin",
+                    "description": "API key management and system administration",
+                },
+                {
                     "name": "Monitoring",
                     "description": "Health checks and metrics",
                 },
@@ -134,6 +138,7 @@ X-API-Key: your-api-key-here
         # Include API routers
         app.include_router(sessions_router, prefix="/api/v1")
         app.include_router(graph_router, prefix="/api/v1")
+        app.include_router(admin_router, prefix="/api/v1")
 
         # Add monitoring routes
         self._setup_monitoring_routes(app)
