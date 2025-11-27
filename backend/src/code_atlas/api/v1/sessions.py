@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 
 from ...config import AtlasSettings
+from ...job_store import JobStore, get_job_store
 from ...logging_config import get_logger
 from ...session_discovery import SessionDiscovery
 from ...session_parser import SessionParser
@@ -27,8 +28,13 @@ from ...schemas.sessions import (
 logger = get_logger(__name__)
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
-# In-memory job storage (replace with Redis/DB in production)
-_jobs: dict[str, ProcessingJob] = {}
+
+def get_job_store_dependency() -> JobStore:
+    """Dependency to get JobStore instance."""
+    return get_job_store()
+
+
+JobStoreDep = Annotated[JobStore, Depends(get_job_store_dependency)]
 
 
 def _session_to_info(path: Path, project_name: str | None = None) -> SessionInfo:
@@ -112,18 +118,24 @@ async def discover_sessions(
     )
 
 
-async def _process_sessions_background(
+def _process_sessions_background(
     job_id: str,
     session_paths: list[str],
     settings: AtlasSettings,
     use_llm: bool,
     dry_run: bool,
     max_cost: float,
+    job_store: JobStore,
 ) -> None:
     """Background task to process sessions."""
-    job = _jobs[job_id]
+    job = job_store.get(job_id)
+    if job is None:
+        logger.error("Job not found for background processing", job_id=job_id)
+        return
+
     job.status = JobStatus.RUNNING
     job.started_at = datetime.now(tz=timezone.utc)
+    job_store.save(job)
 
     try:
         runner = PipelineRunner(settings)
@@ -131,12 +143,14 @@ async def _process_sessions_background(
         for i, path_str in enumerate(session_paths):
             job.current_session = Path(path_str).name
             job.processed_sessions = i
+            job_store.save(job)
 
             try:
                 # Process single session
                 path = Path(path_str)
                 if not path.exists():
                     job.failed_sessions += 1
+                    job_store.save(job)
                     continue
 
                 result = runner.process_session(
@@ -161,6 +175,8 @@ async def _process_sessions_background(
                 else:
                     job.failed_sessions += 1
 
+                job_store.save(job)
+
             except Exception as exc:
                 logger.error(
                     "Session processing failed",
@@ -168,16 +184,19 @@ async def _process_sessions_background(
                     error=str(exc),
                 )
                 job.failed_sessions += 1
+                job_store.save(job)
 
         job.status = JobStatus.COMPLETED
         job.completed_at = datetime.now(tz=timezone.utc)
         job.current_session = None
+        job_store.save(job)
 
     except Exception as exc:
         logger.error("Job failed", job_id=job_id, error=str(exc))
         job.status = JobStatus.FAILED
         job.error_message = str(exc)
         job.completed_at = datetime.now(tz=timezone.utc)
+        job_store.save(job)
 
 
 @router.post(
@@ -192,6 +211,7 @@ async def process_sessions(
     background_tasks: BackgroundTasks,
     settings: Settings,
     api_key: ApiKey,
+    job_store: JobStoreDep,
 ) -> SessionProcessResponse:
     """Submit sessions for processing."""
     logger.info(
@@ -227,7 +247,7 @@ async def process_sessions(
         processed_sessions=0,
         failed_sessions=0,
     )
-    _jobs[job_id] = job
+    job_store.save(job)
 
     # Start background processing
     background_tasks.add_task(
@@ -238,6 +258,7 @@ async def process_sessions(
         use_llm=request.use_llm,
         dry_run=request.dry_run,
         max_cost=request.max_cost_per_session,
+        job_store=job_store,
     )
 
     return SessionProcessResponse(
@@ -255,15 +276,17 @@ async def process_sessions(
 async def get_job_status(
     job_id: str,
     api_key: ApiKey,
+    job_store: JobStoreDep,
 ) -> SessionProcessResponse:
     """Get processing job status."""
-    if job_id not in _jobs:
+    job = job_store.get(job_id)
+    if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job not found: {job_id}",
         )
 
-    return SessionProcessResponse(job=_jobs[job_id])
+    return SessionProcessResponse(job=job)
 
 
 @router.get(
@@ -274,19 +297,12 @@ async def get_job_status(
 )
 async def list_jobs(
     api_key: ApiKey,
+    job_store: JobStoreDep,
     status_filter: Annotated[JobStatus | None, Query(alias="status")] = None,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> list[ProcessingJob]:
     """List processing jobs."""
-    jobs = list(_jobs.values())
-
-    if status_filter:
-        jobs = [j for j in jobs if j.status == status_filter]
-
-    # Sort by created_at descending
-    jobs.sort(key=lambda j: j.created_at, reverse=True)
-
-    return jobs[:limit]
+    return job_store.list_jobs(status=status_filter, limit=limit)
 
 
 @router.delete(
@@ -298,23 +314,27 @@ async def list_jobs(
 async def cancel_job(
     job_id: str,
     api_key: ApiKey,
+    job_store: JobStoreDep,
 ) -> None:
     """Cancel a processing job."""
-    if job_id not in _jobs:
+    job = job_store.get(job_id)
+    if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job not found: {job_id}",
         )
 
-    job = _jobs[job_id]
     if job.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot cancel job with status: {job.status}",
         )
 
-    job.status = JobStatus.CANCELLED
-    job.completed_at = datetime.now(tz=timezone.utc)
+    job_store.update_status(
+        job_id,
+        JobStatus.CANCELLED,
+        completed_at=datetime.now(tz=timezone.utc),
+    )
 
 
 @router.get(
@@ -325,9 +345,11 @@ async def cancel_job(
 )
 async def get_stats(
     api_key: ApiKey,
+    job_store: JobStoreDep,
 ) -> ProcessingStatsResponse:
     """Get processing statistics."""
-    completed_jobs = [j for j in _jobs.values() if j.status == JobStatus.COMPLETED]
+    all_jobs = job_store.list_jobs(limit=1000)
+    completed_jobs = [j for j in all_jobs if j.status == JobStatus.COMPLETED]
 
     total_sessions = sum(j.processed_sessions for j in completed_jobs)
     total_entities = sum(
@@ -348,11 +370,11 @@ async def get_stats(
     avg_time = sum(processing_times) / len(processing_times) if processing_times else 0
 
     # Calculate success rate
-    all_sessions = sum(j.total_sessions for j in _jobs.values())
+    all_sessions = sum(j.total_sessions for j in all_jobs)
     success_rate = total_sessions / all_sessions if all_sessions > 0 else 0
 
     return ProcessingStatsResponse(
-        total_jobs=len(_jobs),
+        total_jobs=len(all_jobs),
         total_sessions_processed=total_sessions,
         total_entities_created=total_entities,
         total_relationships_created=total_relationships,
