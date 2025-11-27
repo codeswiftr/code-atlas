@@ -71,12 +71,11 @@ async def discover_sessions(
             detail=f"Root path does not exist: {root_path}",
         )
 
-    discovery = SessionDiscovery(settings)
+    discovery = SessionDiscovery(root=root_path, settings=settings)
     sessions: list[SessionInfo] = []
 
     try:
         for session_path in discovery.discover_generator(
-            root=root_path,
             project_filter=request.project_filter,
         ):
             # Apply size filters

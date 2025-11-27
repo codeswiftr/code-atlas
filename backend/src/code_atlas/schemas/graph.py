@@ -42,8 +42,8 @@ class EntityResponse(BaseModel):
     created_at: datetime | None = None
     mention_count: int = 0
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "id": "concept-abc123",
                 "type": "Concept",
@@ -58,6 +58,7 @@ class EntityResponse(BaseModel):
                 "mention_count": 5,
             }
         }
+    }
 
 
 class EntityListResponse(BaseResponse):
@@ -84,8 +85,8 @@ class RelationshipResponse(BaseModel):
     confidence: float | None = None
     created_at: datetime | None = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "id": "rel-abc123",
                 "type": "SOLVES",
@@ -100,6 +101,7 @@ class RelationshipResponse(BaseModel):
                 "created_at": "2025-01-15T10:30:00Z",
             }
         }
+    }
 
 
 class RelationshipListResponse(BaseResponse):
@@ -131,14 +133,15 @@ class GraphQueryRequest(BaseModel):
         description="Maximum number of results",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "query": "MATCH (e:Concept) WHERE e.name CONTAINS $search RETURN e LIMIT $limit",
                 "parameters": {"search": "auth"},
                 "limit": 50,
             }
         }
+    }
 
 
 class GraphQueryResponse(BaseResponse):
@@ -160,8 +163,8 @@ class NodeData(BaseModel):
     color: str | None = None
     properties: dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "id": "concept-abc123",
                 "label": "Authentication",
@@ -171,6 +174,7 @@ class NodeData(BaseModel):
                 "properties": {"mention_count": 5},
             }
         }
+    }
 
 
 class EdgeData(BaseModel):
@@ -184,8 +188,8 @@ class EdgeData(BaseModel):
     color: str | None = None
     properties: dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "id": "rel-abc123",
                 "source": "solution-xyz",
@@ -196,6 +200,7 @@ class EdgeData(BaseModel):
                 "properties": {},
             }
         }
+    }
 
 
 class GraphVisualizationResponse(BaseResponse):
@@ -207,8 +212,8 @@ class GraphVisualizationResponse(BaseResponse):
     edge_count: int
     layout_hint: str = "force"
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "success": True,
                 "nodes": [
@@ -234,6 +239,7 @@ class GraphVisualizationResponse(BaseResponse):
                 "layout_hint": "force",
             }
         }
+    }
 
 
 class EntitySearchRequest(BaseModel):

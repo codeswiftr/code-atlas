@@ -30,8 +30,8 @@ class SessionInfo(BaseModel):
     project_name: str | None = None
     message_count: int | None = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "path": "/Users/user/.claude/projects/my-project/session-abc123.jsonl",
                 "filename": "session-abc123.jsonl",
@@ -41,6 +41,7 @@ class SessionInfo(BaseModel):
                 "message_count": 42,
             }
         }
+    }
 
 
 class SessionDiscoveryRequest(BaseModel):
@@ -112,8 +113,8 @@ class SessionProcessRequest(BaseModel):
         description="Maximum cost per session in USD",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "session_paths": [
                     "/Users/user/.claude/projects/my-project/session-abc123.jsonl"
@@ -123,6 +124,7 @@ class SessionProcessRequest(BaseModel):
                 "max_cost_per_session": 0.02,
             }
         }
+    }
 
 
 class ProcessingJob(BaseModel):
@@ -140,8 +142,8 @@ class ProcessingJob(BaseModel):
     error_message: str | None = None
     stats: dict[str, Any] | None = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "job_id": "job-abc123",
                 "status": "running",
@@ -160,6 +162,7 @@ class ProcessingJob(BaseModel):
                 },
             }
         }
+    }
 
 
 class SessionProcessResponse(BaseResponse):
