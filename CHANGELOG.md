@@ -58,12 +58,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parameter substitution in queries
 - FalkorDB result parsing to Python dicts
 - Node and relationship parsing
+- Entity deduplication integration via EntityResolver
+
+#### Added - WebSocket Support
+- Real-time job status updates via `/ws/jobs/{job_id}`
+- WebSocket connection manager for broadcasting updates
+- Graceful connection handling and cleanup
+
+#### Added - Entity Deduplication System
+- `entity_resolver.py` with similarity-based detection (85% threshold)
+- Merge tracking with full history and statistics
+- Batch deduplication for processing multiple entities
+- Integration with GraphPopulator for automatic deduplication
+- Merge record schemas in graph.py (MergeRecordResponse, DeduplicationStatsResponse)
 
 #### Tests
 - `test_job_store.py` - 11 tests for job persistence
 - `test_api_keys.py` - 16 tests for API key management
 - `test_graph_search.py` - 17 tests for entity search
-- Total test count: 73+ tests
+- `test_entity_resolver.py` - 23 tests for entity deduplication
+- Total test count: 90+ tests
 
 ### Beta Launch Preparation (January 2025)
 - Consolidated all documentation files
@@ -189,13 +203,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Future Releases
 
-### Planned for 0.2.0 (Phase 2.1) - In Progress
+### Planned for 0.2.0 (Phase 2.1) - COMPLETE
 - ✅ FastAPI REST API with OpenAPI docs
 - ✅ Job persistence with SQLite
 - ✅ API key management with scoped permissions
 - ✅ Full-text entity search with fuzzy matching
 - ✅ React frontend (TypeScript/Vite/TailwindCSS)
-- ⏳ Entity deduplication service
+- ✅ WebSocket real-time job updates
+- ✅ Entity deduplication with merge tracking
 
 ### Planned for 0.3.0 (Phase 2.2)
 - Incremental ingest via file watcher

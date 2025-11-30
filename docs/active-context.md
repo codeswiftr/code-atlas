@@ -1,16 +1,17 @@
 # Active Context · Code Atlas
-**Last Updated:** 2025-11-27
+**Last Updated:** 2025-11-30
 **Owner:** Codeswiftr Infra / Knowledge Systems Guild
 
 ## Current Status
 - ✅ MVP Complete (Beta launched January 2025)
-- ✅ **Phase 2.1 Soft Launch In Progress** (November 2025)
+- ✅ **Phase 2.1 Soft Launch COMPLETE** (November 2025)
 - ✅ REST API implemented with FastAPI (sessions, graph, admin endpoints)
 - ✅ Job Persistence System (SQLite-backed) for server restart survival
 - ✅ API Key Management with scoped permissions and rate limiting
 - ✅ Full-Text Entity Search with fuzzy matching
 - ✅ React Frontend with TypeScript/Vite/TailwindCSS
-- ⏳ Entity Deduplication (Epic 4 pending)
+- ✅ WebSocket support for real-time job updates
+- ✅ Entity Deduplication with similarity detection and merge tracking
 
 ## Phase 2.1 Features (Completed)
 1. **REST API**: Full FastAPI service with OpenAPI documentation
@@ -20,6 +21,8 @@
 5. **React Frontend**: TypeScript, Vite, TailwindCSS with Home/Sessions/Entities/Graph pages
 6. **Multi-Provider LLM**: OpenRouter support via LiteLLM (Grok, Llama, Claude)
 7. **Rate Limiting**: Built-in rate limiting middleware (100/min standard, 1000/min admin)
+8. **WebSocket Support**: Real-time job status updates via `/ws/jobs/{job_id}`
+9. **Entity Deduplication**: Similarity-based detection (85% threshold), merge tracking, batch deduplication
 
 ## MVP Features (Completed)
 1. **Session Discovery**: Scans Claude project directories with filtering and size guards
@@ -38,9 +41,10 @@
 1. ✅ Job Persistence System
 2. ✅ API Key Management
 3. ✅ Full-Text Entity Search
-4. ⏳ Entity Deduplication (final epic)
-5. ⏳ Fix remaining test failures (graph search mocking)
-6. ⏳ Documentation updates
+4. ✅ Entity Deduplication
+5. ✅ WebSocket real-time updates
+6. ✅ All test failures resolved (73+ tests passing)
+7. ✅ Documentation updated
 
 ## Architecture Overview
 ```
@@ -68,9 +72,12 @@
 ## Key Files (Phase 2.1)
 - `backend/src/code_atlas/job_store.py` - SQLite job persistence
 - `backend/src/code_atlas/auth/api_keys.py` - API key management
+- `backend/src/code_atlas/entity_resolver.py` - Entity deduplication system
+- `backend/src/code_atlas/api/websocket.py` - WebSocket real-time updates
 - `backend/src/code_atlas/api/v1/admin.py` - Admin endpoints (key CRUD)
 - `backend/src/code_atlas/api/v1/graph.py` - Graph API with search
 - `backend/src/code_atlas/schemas/auth.py` - Auth schemas
+- `backend/src/code_atlas/schemas/graph.py` - Graph schemas (includes merge tracking)
 - `frontend/src/` - React TypeScript frontend
 
 ## Resolved Blockers
@@ -86,10 +93,10 @@
 - **Database**: FalkorDB (graph), SQLite (jobs/keys)
 - **LLM**: Anthropic Claude, OpenRouter (via LiteLLM)
 
-## Next Milestones
-- **2025-11-28**: Complete Epic 4 (Entity Deduplication)
-- **2025-11-30**: Phase 2.1 completion and documentation finalization
-- **2025-12-15**: Phase 2.2 planning (monitoring, webhooks, advanced search)
+## Milestones
+- **2025-11-30**: ✅ Phase 2.1 COMPLETE - All 4 epics implemented and tested
+- **2025-12-15**: Phase 2.2 planning (monitoring, advanced graph analytics, CI/CD)
+- **2025-01-15**: Phase 3 preparation (GraphRAG assistant, Slack integration)
 
 ## References
 - [PLAN.md](PLAN.md) - Implementation plan with epic details

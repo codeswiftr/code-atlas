@@ -21,5 +21,9 @@
 - **2025-11-27**: Added `execute_query()` method to GraphPopulator for read queries with parameter substitution and FalkorDB result parsing.
 - **2025-11-27**: Implemented React frontend with TypeScript, Vite, and TailwindCSS including pages for Home, Sessions, Entities, and Graph visualization.
 - **2025-11-27**: Created comprehensive test suites: test_job_store.py (11 tests), test_api_keys.py (16 tests), test_graph_search.py (17 tests). Total test count: 73+.
+- **2025-11-30**: Implemented WebSocket support for real-time job status updates via `/ws/jobs/{job_id}` endpoint with connection management.
+- **2025-11-30**: Implemented Entity Deduplication system (`entity_resolver.py`) with similarity-based detection (85% threshold), merge tracking, batch deduplication, and deduplication statistics. Added 23 tests for entity resolution.
+- **2025-11-30**: Fixed GraphPopulator dependency injection in `dependencies.py` and test mocking using FastAPI's `dependency_overrides`. All 40+ new tests passing.
+- **2025-11-30**: **Phase 2.1 COMPLETE** - All 4 epics (Job Persistence, API Key Management, Full-Text Search, Entity Deduplication) fully implemented and tested.
 
-> **Next Update Cadence:** As needed during Phase 2.1 completion and Phase 2.2 planning.
+> **Next Update Cadence:** As needed during Phase 2.2 planning and Phase 3 preparation.

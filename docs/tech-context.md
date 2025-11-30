@@ -119,3 +119,40 @@
   - ✅ Utility-first CSS with TailwindCSS
   - ✅ Rich ecosystem for graph visualization (D3.js, Cytoscape.js)
   - ⚠️ Separate build/deploy pipeline from backend
+
+## ADR-009 · WebSocket for Real-Time Updates
+- **Status**: Accepted · 2025-11-30
+- **Context**: Processing jobs can take significant time; users need real-time feedback without polling.
+- **Options Considered**:
+  1. HTTP polling - simple but inefficient, high latency
+  2. Server-Sent Events (SSE) - unidirectional, simpler than WebSocket
+  3. WebSocket - bidirectional, low latency, well supported
+- **Decision**: Use **WebSocket** via FastAPI's native WebSocket support.
+- **Consequences**:
+  - ✅ Real-time updates with minimal latency
+  - ✅ Native FastAPI support via Starlette
+  - ✅ Connection manager handles multiple concurrent clients
+  - ⚠️ Requires connection state management
+  - ⚠️ Need reconnection logic in frontend
+
+## ADR-010 · Entity Deduplication Strategy
+- **Status**: Accepted · 2025-11-30
+- **Context**: Same entities extracted from multiple sessions create duplicates; need merge capability.
+- **Options Considered**:
+  1. Exact match only - misses variations like "auth" vs "authentication"
+  2. Fuzzy matching with Levenshtein distance - common approach, moderate accuracy
+  3. Fuzzy matching with SequenceMatcher - Python standard library, good balance
+  4. ML-based entity resolution - most accurate, but complex and resource-intensive
+- **Decision**: Use **SequenceMatcher** from Python's `difflib` with 85% similarity threshold.
+- **Implementation**:
+  - `EntityResolver` class with find_similar, resolve, merge_entities methods
+  - Merge tracking with full history (source, target, timestamp, similarity score)
+  - Batch deduplication for processing multiple entities efficiently
+  - Integration with GraphPopulator via lazy initialization
+- **Consequences**:
+  - ✅ Catches common variations (case, typos, abbreviations)
+  - ✅ No external dependencies
+  - ✅ Full merge history for auditing
+  - ✅ Batch processing for efficiency
+  - ⚠️ May miss semantic similarity ("OAuth" vs "authentication")
+  - Mitigation: Add synonym support in future version
