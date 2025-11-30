@@ -41,6 +41,9 @@ htmlcov/
 .archive/
 *.log
 logs/
+data/*.db
+data/*.sqlite
+!data/.gitkeep
 
 # Temporary files
 *.tmp
