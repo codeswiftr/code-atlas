@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Filter, Download, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Search, Download, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 import { apiClient } from '@/api/client';
-import { EntityType, NodeData, EdgeData, EntityResponse } from '@/types/api';
+import { EntityType, EntityResponse } from '@/types/api';
 
 const GraphPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');

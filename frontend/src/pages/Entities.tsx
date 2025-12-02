@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Filter, Database, FileText, Tool, Lightbulb, CheckCircle } from 'lucide-react';
+import { Search, Filter, Database, FileText, Wrench, Lightbulb, CheckCircle } from 'lucide-react';
 
 import { apiClient } from '@/api/client';
-import { EntityType, EntityResponse } from '@/types/api';
+import { EntityType } from '@/types/api';
 
 const EntitiesPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,7 +32,7 @@ const EntitiesPage: React.FC = () => {
       case EntityType.FILE:
         return Database;
       case EntityType.TOOL:
-        return Tool;
+        return Wrench;
       case EntityType.PROBLEM:
         return CheckCircle;
       case EntityType.SOLUTION:

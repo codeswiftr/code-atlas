@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Home, 
-  FileText, 
-  Network, 
-  Database, 
-  Settings,
+import {
+  Home,
+  FileText,
+  Network,
+  Database,
   Menu,
-  X 
+  X
 } from 'lucide-react';
 
 interface LayoutProps {

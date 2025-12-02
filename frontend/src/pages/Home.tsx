@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, FileText, Network, Search, BarChart3 } from 'lucide-react';
-import { apiClient } from '@/api/client';
 
 const HomePage: React.FC = () => {
   const features = [

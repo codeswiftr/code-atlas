@@ -1,23 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  FileText, 
-  Play, 
-  RefreshCw, 
-  CheckCircle, 
-  XCircle, 
+import {
+  FileText,
+  Play,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
   Clock,
   Search,
-  Filter,
   ChevronDown
 } from 'lucide-react';
 
 import { apiClient } from '@/api/client';
-import { 
-  SessionInfo, 
-  ProcessingJob, 
+import {
   JobStatus,
-  SessionProcessRequest 
+  SessionProcessRequest
 } from '@/types/api';
 
 const SessionsPage: React.FC = () => {
@@ -38,7 +35,7 @@ const SessionsPage: React.FC = () => {
   });
 
   // List jobs
-  const { data: jobs, isLoading: jobsLoading } = useQuery({
+  const { data: jobs } = useQuery({
     queryKey: ['jobs'],
     queryFn: () => apiClient.listJobs(),
     refetchInterval: 5000, // Poll every 5 seconds

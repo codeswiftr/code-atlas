@@ -12,7 +12,6 @@ import {
   GraphVisualizationResponse,
   GraphQueryRequest,
   GraphQueryResponse,
-  QueryParams,
 } from '@/types/api';
 
 /**
@@ -41,7 +40,7 @@ export class CodeAtlasAPIClient {
     };
 
     if (this.apiKey) {
-      headers['X-API-Key'] = this.apiKey;
+      (headers as Record<string, string>)['X-API-Key'] = this.apiKey;
     }
 
     const response = await fetch(url, {
