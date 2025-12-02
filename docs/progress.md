@@ -26,4 +26,13 @@
 - **2025-11-30**: Fixed GraphPopulator dependency injection in `dependencies.py` and test mocking using FastAPI's `dependency_overrides`. All 40+ new tests passing.
 - **2025-11-30**: **Phase 2.1 COMPLETE** - All 4 epics (Job Persistence, API Key Management, Full-Text Search, Entity Deduplication) fully implemented and tested.
 
+## Production Hardening (December 2025)
+
+- **2025-12-02**: Created multi-stage Dockerfile for production deployment with security hardening (non-root user, health checks, slim base image).
+- **2025-12-02**: Implemented GitHub Actions CI/CD pipelines (ci.yml for testing/linting, cd.yml for Docker image deployment to GHCR).
+- **2025-12-02**: Updated docker-compose.prod.yml with full production stack (API, FalkorDB, Redis with health checks and persistence).
+- **2025-12-02**: Added operations scripts: health-check.sh, backup.sh, restore.sh (Bash 3.x compatible).
+- **2025-12-02**: Added 29 production tests covering Dockerfile, docker-compose, scripts, and CI/CD workflows.
+- **2025-12-02**: **Epic 4: Production Hardening COMPLETE** - Full CI/CD pipeline, Docker deployment, and operations tooling.
+
 > **Next Update Cadence:** As needed during Phase 2.2 planning and Phase 3 preparation.

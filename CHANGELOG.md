@@ -79,6 +79,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `test_entity_resolver.py` - 23 tests for entity deduplication
 - Total test count: 90+ tests
 
+### Production Hardening (December 2025)
+
+#### Added - Docker Deployment
+- Multi-stage Dockerfile for minimal production image (<500MB)
+- Non-root user for security hardening
+- Built-in health check endpoint
+- Production docker-compose with full stack (API, FalkorDB, Redis)
+- Named volumes for data persistence
+
+#### Added - CI/CD Pipelines
+- GitHub Actions CI workflow (lint, test, type check, security scan)
+- GitHub Actions CD workflow (build and push to GHCR)
+- Matrix testing for Python 3.11 and 3.12
+- Docker build caching for faster builds
+- Codecov integration for coverage tracking
+
+#### Added - Operations Scripts
+- `health-check.sh` - JSON output, service health monitoring
+- `backup.sh` - SQLite and FalkorDB backup with rotation
+- `restore.sh` - Restore from backup archives
+- All scripts Bash 3.x compatible for macOS
+
+#### Tests
+- `test_production.py` - 29 tests for production readiness
+- Dockerfile best practices validation
+- docker-compose configuration tests
+- Script executability and help tests
+- CI/CD workflow file validation
+- Total test count: 120+ tests
+
 ### Beta Launch Preparation (January 2025)
 - Consolidated all documentation files
 - Created configuration templates (`.env.example`)
