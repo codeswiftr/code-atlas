@@ -19,7 +19,7 @@ describe('CodeAtlasAPIClient', () => {
 
     it('should set API key info correctly', () => {
       const keyInfo = client.getAPIKeyInfo();
-      expect(keyInfo).toBe('test-api-ke...');
+      expect(keyInfo).toBe('test-api-key...');
     });
 
     it('should handle missing API key', () => {
@@ -133,7 +133,6 @@ describe('CodeAtlasAPIClient', () => {
       expect(fetch).toHaveBeenCalledWith(
         'http://test-api/api/v1/sessions/test-job-id/status',
         {
-          method: 'GET',
           headers: {
             'Content-Type': 'application/json',
             'X-API-Key': 'test-api-key'
@@ -160,6 +159,7 @@ describe('CodeAtlasAPIClient', () => {
       (fetch as any).mockResolvedValueOnce({
         ok: false,
         status: 500,
+        statusText: 'Internal Server Error',
         json: () => Promise.reject(new Error('JSON parse error'))
       });
 

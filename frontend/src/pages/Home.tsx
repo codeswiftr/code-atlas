@@ -1,8 +1,39 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, FileText, Network, Search, BarChart3 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, FileText, Network, Search, BarChart3, Loader2 } from 'lucide-react';
+import { apiClient } from '@/api/client';
+
+interface GraphStats {
+  entity_count: number;
+  relationship_count: number;
+  entity_types: Record<string, number>;
+}
+
+interface ProcessingStats {
+  total_sessions_processed: number;
+  total_cost: number;
+}
 
 const HomePage: React.FC = () => {
+  // Fetch graph stats
+  const { data: graphStats, isLoading: graphLoading } = useQuery<GraphStats>({
+    queryKey: ['graph-stats'],
+    queryFn: () => apiClient.getGraphStats(),
+    retry: 1,
+    staleTime: 60000, // 1 minute
+  });
+
+  // Fetch processing stats
+  const { data: processingStats, isLoading: processingLoading } = useQuery<ProcessingStats>({
+    queryKey: ['processing-stats'],
+    queryFn: () => apiClient.getProcessingStats(),
+    retry: 1,
+    staleTime: 60000,
+  });
+
+  const isLoading = graphLoading || processingLoading;
+
   const features = [
     {
       icon: FileText,
@@ -30,11 +61,34 @@ const HomePage: React.FC = () => {
     },
   ];
 
+  const formatNumber = (num: number | undefined): string => {
+    if (num === undefined) return '0';
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+    return num.toString();
+  };
+
+  const formatCost = (cost: number | undefined): string => {
+    if (cost === undefined) return '$0.00';
+    return `$${cost.toFixed(2)}`;
+  };
+
   const stats = [
-    { label: 'Sessions Processed', value: '0' },
-    { label: 'Entities Extracted', value: '0' },
-    { label: 'Relationships Found', value: '0' },
-    { label: 'Processing Cost', value: '$0.00' },
+    {
+      label: 'Sessions Processed',
+      value: formatNumber(processingStats?.total_sessions_processed),
+    },
+    {
+      label: 'Entities Extracted',
+      value: formatNumber(graphStats?.entity_count),
+    },
+    {
+      label: 'Relationships Found',
+      value: formatNumber(graphStats?.relationship_count),
+    },
+    {
+      label: 'Processing Cost',
+      value: formatCost(processingStats?.total_cost),
+    },
   ];
 
   return (
@@ -64,7 +118,11 @@ const HomePage: React.FC = () => {
         {stats.map((stat, index) => (
           <div key={index} className="card text-center">
             <div className="text-2xl font-bold text-atlas-blue-600">
-              {stat.value}
+              {isLoading ? (
+                <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+              ) : (
+                stat.value
+              )}
             </div>
             <div className="text-sm text-gray-600 mt-1">
               {stat.label}

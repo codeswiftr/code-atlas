@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter } from 'react-router-dom';
 import SessionsPage from '@/pages/Sessions';
+import { JobStatus } from '@/types/api';
 import { apiClient } from '@/api/client';
-import * as router from 'react-router-dom';
 
 // Mock API client
 vi.mock('@/api/client', () => ({
@@ -14,14 +15,9 @@ vi.mock('@/api/client', () => ({
   },
 }));
 
-// Mock router
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => vi.fn(),
-  };
-});
+const mockDiscoverSessions = apiClient.discoverSessions as Mock;
+const mockProcessSessions = apiClient.processSessions as Mock;
+const mockListJobs = apiClient.listJobs as Mock;
 
 const createTestQueryClient = () => new QueryClient({
   defaultOptions: {
@@ -33,9 +29,11 @@ const createTestQueryClient = () => new QueryClient({
 const renderWithQueryClient = (component: React.ReactElement) => {
   const queryClient = createTestQueryClient();
   return render(
-    <QueryClientProvider client={queryClient}>
-      {component}
-    </QueryClientProvider>
+    <BrowserRouter>
+      <QueryClientProvider client={queryClient}>
+        {component}
+      </QueryClientProvider>
+    </BrowserRouter>
   );
 };
 
@@ -53,15 +51,16 @@ describe('SessionsPage', () => {
     });
 
     it('should show loading state initially', () => {
-      (apiClient.discoverSessions as any).mockReturnValue(new Promise(() => {}));
-      
+      mockDiscoverSessions.mockReturnValue(new Promise(() => {}));
+      mockListJobs.mockReturnValue(new Promise(() => {}));
+
       renderWithQueryClient(<SessionsPage />);
-      
+
       expect(screen.getByText('Discovering sessions...')).toBeInTheDocument();
     });
 
     it('should show no sessions message when empty', async () => {
-      (apiClient.discoverSessions as any).mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValue({
         sessions: [],
         total_found: 0,
         search_path: '/test',
@@ -78,8 +77,7 @@ describe('SessionsPage', () => {
 
   describe('session discovery', () => {
     it('should call discoverSessions API on mount', async () => {
-      const mockDiscover = vi.mocked(apiClient.discoverSessions);
-      mockDiscover.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValue({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -97,7 +95,7 @@ describe('SessionsPage', () => {
       renderWithQueryClient(<SessionsPage />);
 
       await waitFor(() => {
-        expect(mockDiscover).toHaveBeenCalledWith({
+        expect(mockDiscoverSessions).toHaveBeenCalledWith({
           limit: 100,
           project_filter: undefined,
         });
@@ -105,7 +103,7 @@ describe('SessionsPage', () => {
     });
 
     it('should display discovered sessions', async () => {
-      (apiClient.discoverSessions as any).mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValue({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -142,7 +140,7 @@ describe('SessionsPage', () => {
 
   describe('session selection', () => {
     it('should allow selecting sessions', async () => {
-      (apiClient.discoverSessions as any).mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValue({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -172,7 +170,7 @@ describe('SessionsPage', () => {
     });
 
     it('should handle select all functionality', async () => {
-      (apiClient.discoverSessions as any).mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValue({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -212,10 +210,7 @@ describe('SessionsPage', () => {
 
   describe('session processing', () => {
     it('should call processSessions when process button clicked', async () => {
-      const mockDiscover = vi.mocked(apiClient.discoverSessions);
-      const mockProcess = vi.mocked(apiClient.processSessions);
-      
-      mockDiscover.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValue({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -230,10 +225,10 @@ describe('SessionsPage', () => {
         message: 'Found 1 sessions'
       });
 
-      mockProcess.mockResolvedValue({
+      mockProcessSessions.mockResolvedValue({
         job: {
           job_id: 'test-job-id',
-          status: 'pending',
+          status: JobStatus.PENDING,
           total_sessions: 1,
           processed_sessions: 0,
           failed_sessions: 0
@@ -252,7 +247,7 @@ describe('SessionsPage', () => {
       fireEvent.click(processButton);
 
       await waitFor(() => {
-        expect(mockProcess).toHaveBeenCalledWith({
+        expect(mockProcessSessions).toHaveBeenCalledWith({
           session_paths: ['/test/session1.jsonl'],
           use_llm: true,
           dry_run: false,
@@ -262,7 +257,7 @@ describe('SessionsPage', () => {
     });
 
     it('should disable process button when no sessions selected', async () => {
-      (apiClient.discoverSessions as any).mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValue({
         sessions: [],
         total_found: 0,
         search_path: '/test',
@@ -280,7 +275,7 @@ describe('SessionsPage', () => {
 
   describe('filtering', () => {
     it('should filter sessions by search term', async () => {
-      (apiClient.discoverSessions as any).mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValue({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -319,7 +314,7 @@ describe('SessionsPage', () => {
     });
 
     it('should filter sessions by project name', async () => {
-      (apiClient.discoverSessions as any).mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValue({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -360,7 +355,7 @@ describe('SessionsPage', () => {
 
   describe('job status display', () => {
     it('should display processing jobs', async () => {
-      (apiClient.listJobs as any).mockResolvedValue([
+      mockListJobs.mockResolvedValue([
         {
           job_id: 'test-job-1',
           status: 'completed',

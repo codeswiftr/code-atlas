@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
@@ -6,8 +6,11 @@ import {
   Network,
   Database,
   Menu,
-  X
+  X,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
+import { apiClient } from '@/api/client';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,7 +18,25 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const location = useLocation();
+
+  // Check API connection on mount and periodically
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const connected = await apiClient.testConnection();
+        setIsConnected(connected);
+      } catch {
+        setIsConnected(false);
+      }
+    };
+
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   const navigation = [
     { name: 'Home', href: '/', icon: Home },
@@ -96,11 +117,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Menu className="w-6 h-6 text-gray-500" />
             </button>
 
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-500">
-                Connected to API
-              </div>
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <div className="flex items-center space-x-2">
+              {isConnected === null ? (
+                <>
+                  <div className="text-sm text-gray-400">Checking API...</div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
+                </>
+              ) : isConnected ? (
+                <>
+                  <Wifi className="w-4 h-4 text-green-500" />
+                  <div className="text-sm text-green-600">Connected</div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full" />
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-4 h-4 text-red-500" />
+                  <div className="text-sm text-red-600">Disconnected</div>
+                  <div className="w-2 h-2 bg-red-500 rounded-full" />
+                </>
+              )}
             </div>
           </div>
         </div>
