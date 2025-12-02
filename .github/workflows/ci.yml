@@ -1,0 +1,189 @@
+# Code Atlas CI Pipeline
+# ======================
+# Runs on every push and pull request
+# Tests backend (Python) and frontend (Node.js)
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+
+jobs:
+  # ===========================================================================
+  # Backend Tests
+  # ===========================================================================
+  backend-test:
+    name: Backend Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    services:
+      falkordb:
+        image: falkordb/falkordb:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync
+
+      - name: Run linter
+        working-directory: backend
+        run: uv run ruff check src/ tests/
+
+      - name: Run type checker
+        working-directory: backend
+        run: uv run mypy src/ --ignore-missing-imports
+
+      - name: Run tests with coverage
+        working-directory: backend
+        env:
+          CODE_ATLAS_REDIS_URL: redis://localhost:6379
+          CODE_ATLAS_API_KEY_REQUIRED: "false"
+        run: |
+          uv run pytest tests/ \
+            --cov=code_atlas \
+            --cov-report=xml \
+            --cov-report=term \
+            -v
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          files: backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+
+  # ===========================================================================
+  # Backend Lint (Fast)
+  # ===========================================================================
+  backend-lint:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Run ruff format check
+        working-directory: backend
+        run: uv run ruff format --check src/ tests/
+
+      - name: Run ruff lint
+        working-directory: backend
+        run: uv run ruff check src/ tests/
+
+  # ===========================================================================
+  # Frontend Tests
+  # ===========================================================================
+  frontend-test:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run linter
+        working-directory: frontend
+        run: npm run lint || true  # Don't fail on lint warnings initially
+
+      - name: Run type check
+        working-directory: frontend
+        run: npm run build  # TypeScript check is part of build
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm test -- --run || true  # Don't fail if no tests yet
+
+  # ===========================================================================
+  # Docker Build Test
+  # ===========================================================================
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: code-atlas:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ===========================================================================
+  # Security Scan
+  # ===========================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'  # Don't fail on vulnerabilities initially
+          format: 'table'

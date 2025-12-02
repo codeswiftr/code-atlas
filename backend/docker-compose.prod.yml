@@ -1,24 +1,126 @@
+# Code Atlas Production Docker Compose
+# =====================================
+# Full production stack with all services
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Required environment variables (set in .env or pass via -e):
+#   - CODE_ATLAS_ADMIN_API_KEY: Admin API key for authentication
+#   - ANTHROPIC_API_KEY or OPENROUTER_API_KEY: LLM provider key (optional)
+
 version: "3.9"
 
 services:
+  # ===========================================================================
+  # Code Atlas API Server
+  # ===========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: code-atlas:latest
+    container_name: code-atlas-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Database connections
+      - CODE_ATLAS_REDIS_URL=redis://falkordb:6379
+      - CODE_ATLAS_JOB_DB_PATH=/app/data/jobs.db
+      - CODE_ATLAS_API_KEY_DB_PATH=/app/data/api_keys.db
+      # API Configuration
+      - CODE_ATLAS_HOST=0.0.0.0
+      - CODE_ATLAS_PORT=8000
+      - CODE_ATLAS_API_KEY_REQUIRED=true
+      - CODE_ATLAS_ADMIN_API_KEY=${CODE_ATLAS_ADMIN_API_KEY}
+      - CODE_ATLAS_RATE_LIMIT=100
+      - CODE_ATLAS_ADMIN_RATE_LIMIT=1000
+      # LLM Provider (optional)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - CODE_ATLAS_LLM_PROVIDER=${CODE_ATLAS_LLM_PROVIDER:-anthropic}
+      # Logging
+      - CODE_ATLAS_LOG_LEVEL=INFO
+      - CODE_ATLAS_LOG_FORMAT=json
+      # Features
+      - CODE_ATLAS_ENABLE_DEDUPLICATION=true
+      - CODE_ATLAS_SIMILARITY_THRESHOLD=0.85
+      - CODE_ATLAS_CREATE_DB_INDEXES=true
+    volumes:
+      - atlas_data:/app/data
+      # Mount Claude sessions directory (read-only)
+      - ${CODE_ATLAS_CLAUDE_ROOT:-~/.claude/projects}:/sessions:ro
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - atlas-network
+
+  # ===========================================================================
+  # FalkorDB - Graph Database
+  # ===========================================================================
   falkordb:
     image: falkordb/falkordb:latest
     container_name: code-atlas-falkordb
     restart: unless-stopped
     ports:
-      - "127.0.0.1:6379:6379"  # Bind to localhost only for security
+      - "127.0.0.1:6379:6379"  # Bind to localhost only
     volumes:
       - falkordb_data:/data
     environment:
-      - REDIS_ARGS=--save 60 1 --appendonly yes
+      - REDIS_ARGS=--save 60 1 --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - atlas-network
 
+  # ===========================================================================
+  # Redis - Caching and Rate Limiting
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: code-atlas-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6380:6379"
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - atlas-network
+
+# ===========================================================================
+# Volumes
+# ===========================================================================
 volumes:
+  atlas_data:
+    driver: local
   falkordb_data:
     driver: local
 
+# ===========================================================================
+# Networks
+# ===========================================================================
+networks:
+  atlas-network:
+    driver: bridge
