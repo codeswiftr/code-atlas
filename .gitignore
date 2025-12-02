@@ -51,3 +51,4 @@ data/*.sqlite
 *.bak
 *.backup
 
+frontend/node_modules/
