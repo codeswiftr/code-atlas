@@ -321,6 +321,74 @@ The following changes were made during this review:
 
 ---
 
+---
+
+## 11. P1 Implementation Summary (Executed)
+
+All P1 issues have been addressed. Here's what was implemented:
+
+### P1-1: Fix Test Infrastructure
+**Files Created:**
+- `frontend/tsconfig.test.json` - Test-specific TypeScript config
+- `frontend/vitest.config.ts` - Vitest configuration with jsdom
+- `frontend/src/test/setup.ts` - Test setup with jest-dom matchers
+
+**Status:** Tests now run (11/22 passing, API client tests all pass)
+
+### P1-2: Add Error Boundaries
+**Files Created:**
+- `frontend/src/components/error/ErrorBoundary.tsx` - ErrorBoundary class component with:
+  - Retry functionality
+  - Go home button
+  - Error details display
+  - QueryErrorFallback component for API errors
+
+**Files Modified:**
+- `frontend/src/App.tsx` - Nested ErrorBoundary wrappers around app and routes
+
+### P1-3: Make Connection Status Dynamic
+**Files Modified:**
+- `frontend/src/components/layout/Layout.tsx`:
+  - Added `useEffect` to check API connection on mount
+  - Poll connection status every 30 seconds
+  - Display connected/disconnected with Wifi/WifiOff icons
+  - Show loading state while checking
+
+### P1-4: Connect Home Page Stats to API
+**Files Modified:**
+- `frontend/src/pages/Home.tsx`:
+  - Fetch from `/api/v1/graph/stats` and `/api/v1/sessions/stats`
+  - Add loading spinners for stats
+  - Format numbers (1k+ abbreviations) and costs ($X.XX)
+  - React Query integration with 1-minute cache
+
+### P1-5: Code Splitting for Bundle Optimization
+**Files Modified:**
+- `frontend/src/App.tsx`:
+  - Lazy load all page components with `React.lazy()`
+  - Add `Suspense` with PageLoader fallback
+  - **Result:** Bundle reduced from 530KB to 469KB (main chunk)
+  - **Separate chunks:** Home (9.75KB), Sessions (18.84KB), Graph (18.01KB), Entities (15.02KB)
+
+### Build Results After P1 Implementation
+```
+dist/index.html                         0.59 kB
+dist/assets/index-799b065e.css          1.47 kB
+dist/assets/Home-ddf20db3.js            9.75 kB
+dist/assets/Sessions-6b282ca6.js       18.84 kB
+dist/assets/Graph-95892883.js          18.01 kB
+dist/assets/Entities-1c316720.js       15.02 kB
+dist/assets/index-62223b51.js         469.44 kB (main)
+Total gzipped: ~155 kB
+```
+
+### Commits
+1. `ed1afc8` - P0 fixes (soft launch blockers)
+2. `e521b43` - P1 improvements (GA readiness)
+3. `<latest>` - Remove node_modules from git
+
+---
+
 ## Appendix: File References
 
 ### Source Files
