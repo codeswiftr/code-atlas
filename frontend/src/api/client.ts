@@ -23,7 +23,7 @@ export class CodeAtlasAPIClient {
   private apiKey?: string;
   private wsBaseURL: string;
 
-  constructor(baseURL: string = 'http://localhost:8000', apiKey?: string) {
+  constructor(baseURL = 'http://localhost:8000', apiKey?: string) {
     this.baseURL = baseURL;
     this.apiKey = apiKey;
     this.wsBaseURL = baseURL.replace('http', 'ws');
@@ -86,7 +86,7 @@ export class CodeAtlasAPIClient {
   /**
    * List processing jobs
    */
-  async listJobs(statusFilter?: string, limit: number = 20): Promise<ProcessingJob[]> {
+  async listJobs(statusFilter?: string, limit = 20): Promise<ProcessingJob[]> {
     const params = new URLSearchParams();
     if (statusFilter) params.append('status', statusFilter);
     params.append('limit', limit.toString());

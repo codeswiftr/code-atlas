@@ -50,8 +50,13 @@ describe('SessionsPage', () => {
     });
 
     it('should show loading state initially', () => {
-      mockDiscoverSessions.mockImplementation(() => new Promise(() => {}));
-      mockListJobs.mockImplementation(() => new Promise(() => {}));
+      // Mock functions that return promises that never resolve
+      mockDiscoverSessions.mockImplementation(() => new Promise<never>(() => {
+        // Intentionally never resolves to test loading state
+      }));
+      mockListJobs.mockImplementation(() => new Promise<never>(() => {
+        // Intentionally never resolves to test loading state
+      }));
 
       renderWithQueryClient(<SessionsPage />);
 
