@@ -1,23 +1,22 @@
-import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import SessionsPage from '@/pages/Sessions';
 import { JobStatus } from '@/types/api';
-import { apiClient } from '@/api/client';
 
-// Mock API client
+// Mock API client - must be hoisted before imports
+const mockDiscoverSessions = vi.fn();
+const mockProcessSessions = vi.fn();
+const mockListJobs = vi.fn();
+
 vi.mock('@/api/client', () => ({
   apiClient: {
-    discoverSessions: vi.fn(),
-    processSessions: vi.fn(),
-    listJobs: vi.fn(),
+    discoverSessions: mockDiscoverSessions,
+    processSessions: mockProcessSessions,
+    listJobs: mockListJobs,
   },
 }));
-
-const mockDiscoverSessions = apiClient.discoverSessions as Mock;
-const mockProcessSessions = apiClient.processSessions as Mock;
-const mockListJobs = apiClient.listJobs as Mock;
 
 const createTestQueryClient = () => new QueryClient({
   defaultOptions: {
@@ -51,8 +50,8 @@ describe('SessionsPage', () => {
     });
 
     it('should show loading state initially', () => {
-      mockDiscoverSessions.mockReturnValue(new Promise(() => {}));
-      mockListJobs.mockReturnValue(new Promise(() => {}));
+      mockDiscoverSessions.mockImplementation(() => new Promise(() => {}));
+      mockListJobs.mockImplementation(() => new Promise(() => {}));
 
       renderWithQueryClient(<SessionsPage />);
 
@@ -60,7 +59,7 @@ describe('SessionsPage', () => {
     });
 
     it('should show no sessions message when empty', async () => {
-      mockDiscoverSessions.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValueOnce({
         sessions: [],
         total_found: 0,
         search_path: '/test',
@@ -77,7 +76,7 @@ describe('SessionsPage', () => {
 
   describe('session discovery', () => {
     it('should call discoverSessions API on mount', async () => {
-      mockDiscoverSessions.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValueOnce({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -103,7 +102,7 @@ describe('SessionsPage', () => {
     });
 
     it('should display discovered sessions', async () => {
-      mockDiscoverSessions.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValueOnce({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -140,7 +139,7 @@ describe('SessionsPage', () => {
 
   describe('session selection', () => {
     it('should allow selecting sessions', async () => {
-      mockDiscoverSessions.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValueOnce({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -170,7 +169,7 @@ describe('SessionsPage', () => {
     });
 
     it('should handle select all functionality', async () => {
-      mockDiscoverSessions.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValueOnce({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -210,7 +209,7 @@ describe('SessionsPage', () => {
 
   describe('session processing', () => {
     it('should call processSessions when process button clicked', async () => {
-      mockDiscoverSessions.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValueOnce({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -225,7 +224,7 @@ describe('SessionsPage', () => {
         message: 'Found 1 sessions'
       });
 
-      mockProcessSessions.mockResolvedValue({
+      mockProcessSessions.mockResolvedValueOnce({
         job: {
           job_id: 'test-job-id',
           status: JobStatus.PENDING,
@@ -257,7 +256,7 @@ describe('SessionsPage', () => {
     });
 
     it('should disable process button when no sessions selected', async () => {
-      mockDiscoverSessions.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValueOnce({
         sessions: [],
         total_found: 0,
         search_path: '/test',
@@ -275,7 +274,7 @@ describe('SessionsPage', () => {
 
   describe('filtering', () => {
     it('should filter sessions by search term', async () => {
-      mockDiscoverSessions.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValueOnce({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -304,6 +303,17 @@ describe('SessionsPage', () => {
         expect(screen.getByText('database-session.jsonl')).toBeInTheDocument();
       });
 
+      // Open filters panel - click the Filters header button (ChevronDown icon)
+      const filterSection = screen.getByText('Filters').closest('.card');
+      const filterToggle = filterSection?.querySelector('button');
+      
+      if (filterToggle) {
+        fireEvent.click(filterToggle);
+        await waitFor(() => {
+          expect(screen.getByPlaceholderText('Search filenames...')).toBeInTheDocument();
+        });
+      }
+
       const searchInput = screen.getByPlaceholderText('Search filenames...');
       fireEvent.change(searchInput, { target: { value: 'auth' } });
 
@@ -314,7 +324,7 @@ describe('SessionsPage', () => {
     });
 
     it('should filter sessions by project name', async () => {
-      mockDiscoverSessions.mockResolvedValue({
+      mockDiscoverSessions.mockResolvedValueOnce({
         sessions: [
           {
             path: '/test/session1.jsonl',
@@ -343,6 +353,20 @@ describe('SessionsPage', () => {
         expect(screen.getByText('database-project')).toBeInTheDocument();
       });
 
+      // Open filters panel - find the button with ChevronDown icon
+      const filterButtons = screen.getAllByRole('button');
+      const filterToggle = filterButtons.find(btn => {
+        const svg = btn.querySelector('svg');
+        return svg && svg.getAttribute('viewBox') === '0 0 24 24';
+      });
+      
+      if (filterToggle) {
+        fireEvent.click(filterToggle);
+        await waitFor(() => {
+          expect(screen.getByPlaceholderText('Filter by project...')).toBeInTheDocument();
+        });
+      }
+
       const projectInput = screen.getByPlaceholderText('Filter by project...');
       fireEvent.change(projectInput, { target: { value: 'auth' } });
 
@@ -355,10 +379,17 @@ describe('SessionsPage', () => {
 
   describe('job status display', () => {
     it('should display processing jobs', async () => {
-      mockListJobs.mockResolvedValue([
+      mockDiscoverSessions.mockResolvedValueOnce({
+        sessions: [],
+        total_found: 0,
+        search_path: '/test',
+        message: 'Found 0 sessions'
+      });
+
+      mockListJobs.mockResolvedValueOnce([
         {
           job_id: 'test-job-1',
-          status: 'completed',
+          status: JobStatus.COMPLETED,
           total_sessions: 5,
           processed_sessions: 5,
           failed_sessions: 0,
@@ -367,7 +398,7 @@ describe('SessionsPage', () => {
         },
         {
           job_id: 'test-job-2',
-          status: 'running',
+          status: JobStatus.RUNNING,
           total_sessions: 3,
           processed_sessions: 1,
           failed_sessions: 0,
@@ -383,8 +414,8 @@ describe('SessionsPage', () => {
         expect(screen.getByText('Processing Jobs')).toBeInTheDocument();
         expect(screen.getByText('test-job-1')).toBeInTheDocument();
         expect(screen.getByText('test-job-2')).toBeInTheDocument();
-        expect(screen.getByText('completed')).toBeInTheDocument();
-        expect(screen.getByText('running')).toBeInTheDocument();
+        expect(screen.getByText(JobStatus.COMPLETED)).toBeInTheDocument();
+        expect(screen.getByText(JobStatus.RUNNING)).toBeInTheDocument();
         expect(screen.getByText('5 / 5 sessions processed')).toBeInTheDocument();
         expect(screen.getByText('1 / 3 sessions processed')).toBeInTheDocument();
         expect(screen.getByText('Current: session3.jsonl')).toBeInTheDocument();
