@@ -8,7 +8,8 @@ import {
   XCircle,
   Clock,
   Search,
-  ChevronDown
+  ChevronDown,
+  X
 } from 'lucide-react';
 
 import { apiClient } from '@/api/client';
@@ -22,6 +23,7 @@ const SessionsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [cancelJobId, setCancelJobId] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -46,6 +48,15 @@ const SessionsPage: React.FC = () => {
     mutationFn: (request: SessionProcessRequest) => apiClient.processSessions(request),
     onSuccess: () => {
       setSelectedSessions([]);
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+
+  // Cancel job mutation
+  const cancelJobMutation = useMutation({
+    mutationFn: (jobId: string) => apiClient.cancelJob(jobId),
+    onSuccess: () => {
+      setCancelJobId(null);
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
     },
   });
@@ -202,14 +213,26 @@ const SessionsPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className={getStatusBadge(job.status)}>
-                      {job.status}
-                    </span>
-                    {job.current_session && (
-                      <div className="text-sm text-gray-600 mt-1">
-                        Current: {job.current_session}
-                      </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="text-right">
+                      <span className={getStatusBadge(job.status)}>
+                        {job.status}
+                      </span>
+                      {job.current_session && (
+                        <div className="text-sm text-gray-600 mt-1">
+                          Current: {job.current_session}
+                        </div>
+                      )}
+                    </div>
+                    {(job.status === JobStatus.PENDING || job.status === JobStatus.RUNNING) && (
+                      <button
+                        onClick={() => setCancelJobId(job.job_id)}
+                        className="btn-secondary text-sm text-red-600 hover:bg-red-50"
+                        aria-label={`Cancel job ${job.job_id}`}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Cancel
+                      </button>
                     )}
                   </div>
                 </div>
@@ -298,6 +321,38 @@ const SessionsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Cancel Job Confirmation Dialog */}
+      {cancelJobId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Cancel Job</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to cancel job <span className="font-mono font-medium">{cancelJobId}</span>?
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setCancelJobId(null)}
+                className="btn-secondary"
+                disabled={cancelJobMutation.isPending}
+              >
+                Keep Running
+              </button>
+              <button
+                onClick={() => {
+                  cancelJobMutation.mutate(cancelJobId);
+                }}
+                className="btn-primary bg-red-600 hover:bg-red-700"
+                disabled={cancelJobMutation.isPending}
+                aria-label="Confirm cancel job"
+              >
+                {cancelJobMutation.isPending ? 'Cancelling...' : 'Cancel Job'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

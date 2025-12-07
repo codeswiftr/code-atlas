@@ -21,10 +21,12 @@ help:
 	@echo "  make docker-down  - Stop Docker services"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test         - Run all tests"
-	@echo "  make test-unit    - Run unit tests only (fast)"
-	@echo "  make test-int     - Run integration tests (requires Docker)"
-	@echo "  make test-cov     - Run tests with coverage report"
+	@echo "  make test         - Run all backend tests"
+	@echo "  make test-backend - Run backend tests only"
+	@echo "  make test-frontend- Run frontend tests only"
+	@echo "  make test-unit    - Run backend unit tests only (fast)"
+	@echo "  make test-int     - Run backend integration tests (requires Docker)"
+	@echo "  make test-cov     - Run backend tests with coverage report"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint         - Run linter (ruff check)"
@@ -124,8 +126,16 @@ serve: backend
 # ============================================================================
 
 test:
-	@echo "🧪 Running all tests..."
+	@echo "🧪 Running all backend tests..."
 	cd backend && uv run pytest tests/ -v
+
+test-backend:
+	@echo "🧪 Running backend tests..."
+	cd backend && uv run pytest tests/ -v
+
+test-frontend:
+	@echo "🧪 Running frontend tests..."
+	cd frontend && npm test -- --run
 
 test-unit:
 	@echo "🧪 Running unit tests..."

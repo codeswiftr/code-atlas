@@ -203,6 +203,60 @@ export class CodeAtlasAPIClient {
   }
 
   /**
+   * Get top entities
+   */
+  async getTopEntities(params?: { limit?: number; type?: string }): Promise<any> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.type) searchParams.append('type', params.type);
+    return this.request<any>(`/api/v1/insights/top-entities?${searchParams}`);
+  }
+
+  /**
+   * Get recurring problems
+   */
+  async getRecurringProblems(params?: { min_sessions?: number; limit?: number }): Promise<any> {
+    const searchParams = new URLSearchParams();
+    if (params?.min_sessions) searchParams.append('min_sessions', params.min_sessions.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    return this.request<any>(`/api/v1/insights/recurring-problems?${searchParams}`);
+  }
+
+  /**
+   * Get popular tools
+   */
+  async getPopularTools(params?: { limit?: number }): Promise<any> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    return this.request<any>(`/api/v1/insights/popular-tools?${searchParams}`);
+  }
+
+  /**
+   * Get concept relationships
+   */
+  async getConceptRelationships(params?: { limit?: number }): Promise<any> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    return this.request<any>(`/api/v1/insights/concept-relationships?${searchParams}`);
+  }
+
+  /**
+   * Get trends
+   */
+  async getTrends(params?: { days?: number }): Promise<any> {
+    const searchParams = new URLSearchParams();
+    if (params?.days) searchParams.append('days', params.days.toString());
+    return this.request<any>(`/api/v1/insights/trends?${searchParams}`);
+  }
+
+  /**
+   * Get insight report
+   */
+  async getInsightReport(): Promise<any> {
+    return this.request<any>('/api/v1/insights/reports');
+  }
+
+  /**
    * Create WebSocket connection for real-time updates
    */
   createJobStatusWebSocket(jobId: string): WebSocket {

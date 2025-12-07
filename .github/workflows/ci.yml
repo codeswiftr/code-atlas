@@ -145,7 +145,7 @@ jobs:
 
       - name: Run tests
         working-directory: frontend
-        run: npm test -- --run || true  # Don't fail if no tests yet
+        run: npm test -- --run
 
   # ===========================================================================
   # Docker Build Test

@@ -12,6 +12,7 @@ const HomePage = lazy(() => import('@/pages/Home'));
 const SessionsPage = lazy(() => import('@/pages/Sessions'));
 const GraphPage = lazy(() => import('@/pages/Graph'));
 const EntitiesPage = lazy(() => import('@/pages/Entities'));
+const InsightsPage = lazy(() => import('@/pages/Insights'));
 
 // Loading fallback component
 function PageLoader() {
@@ -48,6 +49,7 @@ function App() {
                   <Route path="/sessions" element={<SessionsPage />} />
                   <Route path="/graph" element={<GraphPage />} />
                   <Route path="/entities" element={<EntitiesPage />} />
+                  <Route path="/insights" element={<InsightsPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>

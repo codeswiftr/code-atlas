@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Download, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Search, Download, ZoomIn, ZoomOut, RotateCcw, Play, X } from 'lucide-react';
 
 import { apiClient } from '@/api/client';
-import { EntityType, EntityResponse } from '@/types/api';
+import { EntityType, EntityResponse, GraphQueryRequest } from '@/types/api';
+import QueryBuilder, { SavedQuery } from '@/components/graph/QueryBuilder';
+import QueryResults from '@/components/graph/QueryResults';
 
 const GraphPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -11,6 +13,12 @@ const GraphPage: React.FC = () => {
   const [selectedEntity, setSelectedEntity] = useState<EntityResponse | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const svgRef = useRef<SVGSVGElement>(null);
+  
+  // Query interface state
+  const [showQueryInterface, setShowQueryInterface] = useState(false);
+  const [queryText, setQueryText] = useState('');
+  const [queryHistory, setQueryHistory] = useState<SavedQuery[]>([]);
+  const [queryError, setQueryError] = useState<string | null>(null);
 
   // Get graph visualization data
   const { data: graphData, isLoading, refetch } = useQuery({
@@ -29,6 +37,94 @@ const GraphPage: React.FC = () => {
       : { results: [], total: 0, query: searchQuery, took_ms: 0, message: '' },
     enabled: searchQuery.length > 0,
   });
+
+  // Load query history from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('code-atlas-query-history');
+    if (saved) {
+      try {
+        setQueryHistory(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load query history:', e);
+      }
+    }
+  }, []);
+
+  // Query execution
+  const queryMutation = useMutation({
+    mutationFn: (request: GraphQueryRequest) => apiClient.executeQuery(request),
+    onSuccess: () => {
+      setQueryError(null);
+    },
+    onError: (error: any) => {
+      setQueryError(error.message || 'Query execution failed');
+    },
+  });
+
+  const executeQuery = () => {
+    if (!queryText.trim()) return;
+    
+    setQueryError(null);
+    queryMutation.mutate({
+      query: queryText,
+      limit: 100,
+      parameters: {},
+    });
+  };
+
+  const handleLoadQuery = (query: string) => {
+    setQueryText(query);
+    setQueryError(null);
+  };
+
+  const handleSaveQuery = (name: string, query: string) => {
+    const newQuery: SavedQuery = {
+      id: Date.now().toString(),
+      name,
+      query,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [newQuery, ...queryHistory].slice(0, 20); // Keep last 20
+    setQueryHistory(updated);
+    localStorage.setItem('code-atlas-query-history', JSON.stringify(updated));
+  };
+
+  const handleExport = (format: 'json' | 'csv') => {
+    if (!graphData) return;
+    
+    if (format === 'json') {
+      const dataStr = JSON.stringify(graphData, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `graph-export-${Date.now()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } else if (format === 'csv') {
+      // Export nodes as CSV
+      const headers = ['id', 'label', 'type', 'size', 'color'];
+      const rows = graphData.nodes.map(node => [
+        node.id,
+        node.label,
+        node.type,
+        node.size,
+        node.color,
+      ]);
+      const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `graph-export-${Date.now()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
 
   // Simple D3-style force simulation (basic implementation)
   useEffect(() => {
@@ -192,18 +288,82 @@ const GraphPage: React.FC = () => {
         </div>
         <div className="flex space-x-3">
           <button
+            onClick={() => setShowQueryInterface(!showQueryInterface)}
+            className={showQueryInterface ? 'btn-primary' : 'btn-secondary'}
+            aria-label={showQueryInterface ? 'Hide query interface' : 'Show query interface'}
+          >
+            <Play className="w-4 h-4 mr-2" />
+            {showQueryInterface ? 'Hide Query' : 'Query Graph'}
+          </button>
+          <button
             onClick={() => refetch()}
             className="btn-secondary"
+            aria-label="Refresh graph"
           >
             <RotateCcw className="w-4 h-4 mr-2" />
             Refresh
           </button>
-          <button className="btn-secondary">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => handleExport('json')}
+              className="btn-secondary"
+              disabled={!graphData}
+              aria-label="Export graph data"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Query Interface */}
+      {showQueryInterface && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Cypher Query Interface</h3>
+            <button
+              onClick={() => {
+                setShowQueryInterface(false);
+                setQueryError(null);
+              }}
+              className="text-gray-400 hover:text-gray-600"
+              aria-label="Close query interface"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <QueryBuilder
+            queryText={queryText}
+            onQueryChange={setQueryText}
+            onLoadQuery={handleLoadQuery}
+            queryHistory={queryHistory}
+            onSaveQuery={handleSaveQuery}
+          />
+          
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={executeQuery}
+              disabled={!queryText.trim() || queryMutation.isPending}
+              className="btn-primary"
+              aria-label="Execute query"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              {queryMutation.isPending ? 'Executing...' : 'Execute Query'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Query Results */}
+      {showQueryInterface && (queryMutation.data || queryError) && (
+        <QueryResults
+          results={queryMutation.data || null}
+          isLoading={queryMutation.isPending}
+          error={queryError}
+        />
+      )}
 
       {/* Controls */}
       <div className="card">
@@ -220,6 +380,7 @@ const GraphPage: React.FC = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search for entities..."
                 className="input-field pl-10"
+                aria-label="Search entities input"
               />
             </div>
           </div>
@@ -232,6 +393,7 @@ const GraphPage: React.FC = () => {
               value={selectedEntityType}
               onChange={(e) => setSelectedEntityType(e.target.value as EntityType | '')}
               className="input-field"
+              aria-label="Entity type filter"
             >
               <option value="">All Types</option>
               {Object.values(EntityType).map(type => (
@@ -303,7 +465,12 @@ const GraphPage: React.FC = () => {
             Graph Visualization 
             {graphData && ` (${graphData.node_count} nodes, ${graphData.edge_count} edges)`}
           </h3>
-          {isLoading && <div className="text-sm text-gray-600">Loading...</div>}
+          {isLoading && (
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-atlas-blue-600" />
+              <span>Loading graph data...</span>
+            </div>
+          )}
         </div>
         
         <div className="relative w-full h-full border border-gray-200 rounded-lg bg-gray-50">

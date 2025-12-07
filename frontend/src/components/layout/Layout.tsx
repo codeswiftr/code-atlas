@@ -8,7 +8,8 @@ import {
   Menu,
   X,
   Wifi,
-  WifiOff
+  WifiOff,
+  BarChart3
 } from 'lucide-react';
 import { apiClient } from '@/api/client';
 
@@ -43,6 +44,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Sessions', href: '/sessions', icon: FileText },
     { name: 'Graph', href: '/graph', icon: Network },
     { name: 'Entities', href: '/entities', icon: Database },
+    { name: 'Insights', href: '/insights', icon: BarChart3 },
   ];
 
   const isActive = (path: string) => location.pathname === path;

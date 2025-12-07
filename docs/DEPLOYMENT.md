@@ -198,6 +198,22 @@ uv run code-atlas report --top-n 10
 
 # Expected: Tables showing top files, concepts, session statistics
 # Or: "Graph appears to be empty" if no data
+
+### Test 6: API & Insights Smoke Test (staging/production)
+
+For a running API deployment (e.g., via `docker-compose.prod.yml`), you can run a single smoke-test script:
+
+```bash
+cd backend
+./scripts/smoke-test.sh
+```
+
+This script will:
+- Check the `/health` endpoint.
+- Hit core REST APIs (sessions discover, graph entities).
+- Hit key insights endpoints under `/api/v1/insights/*`.
+
+Use this as the primary sanity check after deploying to staging or production.
 ```
 
 ### Test 6: Structured Logging

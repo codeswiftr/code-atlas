@@ -3,5 +3,6 @@
 from .admin import router as admin_router
 from .graph import router as graph_router
 from .sessions import router as sessions_router
+from .insights import router as insights_router
 
-__all__ = ["admin_router", "graph_router", "sessions_router"]
+__all__ = ["admin_router", "graph_router", "sessions_router", "insights_router"]

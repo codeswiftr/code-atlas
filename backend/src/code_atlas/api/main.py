@@ -12,7 +12,7 @@ from ..config import AtlasSettings
 from ..logging_config import get_logger
 from ..metrics import init_metrics
 from .middleware import RateLimitMiddleware
-from .v1 import admin_router, graph_router, sessions_router
+from .v1 import admin_router, graph_router, sessions_router, insights_router
 from ..websocket import websocket_job_updates
 
 logger = get_logger(__name__)
@@ -142,6 +142,7 @@ X-API-Key: your-api-key-here
         app.include_router(sessions_router, prefix="/api/v1")
         app.include_router(graph_router, prefix="/api/v1")
         app.include_router(admin_router, prefix="/api/v1")
+        app.include_router(insights_router, prefix="/api/v1")
 
         # Add WebSocket route
         app.websocket("/ws/jobs/{job_id}")(websocket_job_updates)

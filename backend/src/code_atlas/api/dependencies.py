@@ -56,8 +56,9 @@ async def verify_api_key(
             detail="API key required. Provide X-API-Key header.",
         )
 
-    # For MVP, check against configured admin key
-    # TODO: Replace with proper API key management
+    # Check against configured admin key
+    # NOTE: For multi-tenant or high-security deployments, consider replacing
+    # with database-backed API key management (key rotation, per-key rate limits)
     if x_api_key == settings.admin_api_key:
         return "admin"
 

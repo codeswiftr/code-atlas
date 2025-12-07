@@ -82,6 +82,7 @@ const EntitiesPage: React.FC = () => {
           onClick={() => refetch()}
           className="btn-secondary"
           disabled={isLoading}
+          aria-label="Refresh entities list"
         >
           <Filter className="w-4 h-4 mr-2" />
           Refresh
@@ -105,6 +106,7 @@ const EntitiesPage: React.FC = () => {
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search entities..."
                 className="input-field pl-10"
+                aria-label="Search entities input"
               />
             </div>
           </div>
@@ -117,6 +119,7 @@ const EntitiesPage: React.FC = () => {
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value as EntityType | '')}
               className="input-field"
+              aria-label="Entity type filter"
             >
               <option value="">All Types</option>
               {Object.values(EntityType).map(type => (
@@ -137,11 +140,16 @@ const EntitiesPage: React.FC = () => {
               value={minConfidence}
               onChange={(e) => setMinConfidence(parseFloat(e.target.value))}
               className="input-field"
+              aria-label="Minimum confidence filter"
             />
           </div>
 
           <div className="flex items-end">
-            <button onClick={handleSearch} className="btn-primary w-full">
+            <button 
+              onClick={handleSearch} 
+              className="btn-primary w-full"
+              aria-label="Apply filters"
+            >
               Apply Filters
             </button>
           </div>
@@ -154,7 +162,12 @@ const EntitiesPage: React.FC = () => {
           <h3 className="font-semibold">
             Entities {entitiesData && `(${entitiesData.total} total)`}
           </h3>
-          {isLoading && <div className="text-sm text-gray-600">Loading...</div>}
+          {isLoading && (
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-atlas-blue-600" />
+              <span>Loading entities...</span>
+            </div>
+          )}
         </div>
 
         {!entitiesData || entitiesData.entities.length === 0 ? (
@@ -244,11 +257,12 @@ const EntitiesPage: React.FC = () => {
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page === 1}
                 className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Previous page"
               >
                 Previous
               </button>
               
-              <span className="px-3 py-1 text-sm text-gray-600">
+              <span className="px-3 py-1 text-sm text-gray-600" aria-label={`Page ${page} of ${Math.ceil(entitiesData.total / entitiesData.page_size)}`}>
                 Page {page} of {Math.ceil(entitiesData.total / entitiesData.page_size)}
               </span>
               
@@ -256,6 +270,7 @@ const EntitiesPage: React.FC = () => {
                 onClick={() => handlePageChange(page + 1)}
                 disabled={page >= Math.ceil(entitiesData.total / entitiesData.page_size)}
                 className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Next page"
               >
                 Next
               </button>
