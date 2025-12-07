@@ -1,10 +1,11 @@
 # Active Context · Code Atlas
-**Last Updated:** 2025-11-30
+**Last Updated:** 2025-12-07
 **Owner:** Codeswiftr Infra / Knowledge Systems Guild
 
 ## Current Status
 - ✅ MVP Complete (Beta launched January 2025)
 - ✅ **Phase 2.1 Soft Launch COMPLETE** (November 2025)
+- ✅ **Phase 2.5 Quality & Testing COMPLETE** (December 2025)
 - ✅ REST API implemented with FastAPI (sessions, graph, admin endpoints)
 - ✅ Job Persistence System (SQLite-backed) for server restart survival
 - ✅ API Key Management with scoped permissions and rate limiting
@@ -12,6 +13,8 @@
 - ✅ React Frontend with TypeScript/Vite/TailwindCSS
 - ✅ WebSocket support for real-time job updates
 - ✅ Entity Deduplication with similarity detection and merge tracking
+- ✅ Playwright E2E test framework set up
+- ⚠️ E2E tests need navigation fixes (8/10 failing)
 
 ## Phase 2.1 Features (Completed)
 1. **REST API**: Full FastAPI service with OpenAPI documentation
@@ -95,8 +98,17 @@
 
 ## Milestones
 - **2025-11-30**: ✅ Phase 2.1 COMPLETE - All 4 epics implemented and tested
-- **2025-12-15**: Phase 2.2 planning (monitoring, advanced graph analytics, CI/CD)
+- **2025-12-02**: ✅ Production Hardening - CI/CD, Docker, operations scripts
+- **2025-12-07**: ✅ Phase 2.5 Quality - Playwright E2E framework, frontend tests fixed
+- **2025-12-07**: 🔍 Codebase Audit - See `CODEBASE_AUDIT.md` for full report
 - **2025-01-15**: Phase 3 preparation (GraphRAG assistant, Slack integration)
+
+## Quality Metrics (2025-12-07 Audit)
+- **Backend Tests**: 266 tests, ~82% coverage, all passing
+- **Frontend Unit Tests**: 66/66 passing (100%)
+- **E2E Tests**: 2/10 passing (navigation issues)
+- **Type Safety**: 35 mypy errors (needs fixing)
+- **Lint Issues**: 141 ruff + 52 ESLint (auto-fixable)
 
 ## References
 - [PLAN.md](PLAN.md) - Implementation plan with epic details
