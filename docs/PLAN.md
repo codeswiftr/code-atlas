@@ -1814,3 +1814,169 @@ Week 2 (Dec 2-6):
 - [x] No regression in existing tests
 - [x] Performance targets met
 - [ ] Security review completed
+
+---
+
+## Phase 2.5: Near-Term Improvements (Quality & Testing)
+
+**Updated**: 2025-12-07
+**Status**: 🔴 PRIORITY - Required for Production Readiness
+**Goal**: Address critical test coverage gaps and quality issues identified in codebase audit
+
+### Executive Summary
+
+Based on the comprehensive codebase audit (`docs/CODEBASE_AUDIT.md`), Code Atlas is at **95% completion** with the following critical gaps:
+
+| Gap | Impact | Current | Target | Priority | Effort |
+|-----|--------|---------|--------|----------|--------|
+| Insights API Tests | High | 0% | 80% | 🔴 P0 | 4-6h |
+| Frontend Test Failures | Medium | 36% (8/22 failing) | 90%+ | 🔴 P0 | 2-3h |
+| Graph Query UI Tests | Medium | 0% | 70% | 🟡 P1 | 3-4h |
+| API Key Hardening | High | TODO in code | Complete | 🟡 P1 | 2-3h |
+| E2E Test Setup | High | 0% | Basic coverage | 🟡 P1 | 8-12h |
+
+### Sprint 1: Critical Test Gaps (Week of Dec 9-13)
+
+#### Task 2.5.1: Fix Frontend Test Failures (2-3h) 🔴 P0
+**Status**: 📋 Planned
+**Files**: `frontend/src/__tests__/pages/Sessions.test.tsx`
+
+**Problem**: 8/22 frontend tests failing due to:
+- Mock hoisting issues (vi.spyOn vs vi.mock)
+- Test expectations not matching component behavior
+- `renderWithQueryClient` not exported properly
+
+**Actions**:
+1. Fix `renderWithQueryClient` export in `frontend/src/test/utils.ts`
+2. Update test expectations to match actual component text
+3. Ensure all mocks are properly initialized before tests
+
+**Acceptance Criteria**:
+- [ ] All 22 frontend tests passing
+- [ ] No regression in API client tests
+- [ ] Test coverage > 80%
+
+#### Task 2.5.2: Add Insights API Tests (4-6h) 🔴 P0
+**Status**: 📋 Planned
+**Files**: `backend/tests/test_insights_api.py` (NEW)
+
+**Problem**: 6 insights endpoints with 0% test coverage:
+- `/api/v1/insights/top-entities`
+- `/api/v1/insights/recurring-problems`
+- `/api/v1/insights/popular-tools`
+- `/api/v1/insights/concept-relationships`
+- `/api/v1/insights/trends`
+- `/api/v1/insights/reports`
+
+**Functions to Test**:
+```python
+@pytest.mark.asyncio
+async def test_get_top_entities_returns_entities_with_counts():
+    """Test top entities endpoint returns properly ranked entities."""
+
+@pytest.mark.asyncio
+async def test_get_recurring_problems_filters_by_timeframe():
+    """Test recurring problems respects time filters."""
+
+@pytest.mark.asyncio
+async def test_get_popular_tools_orders_by_usage():
+    """Test tools are ordered by usage count descending."""
+
+@pytest.mark.asyncio
+async def test_get_concept_relationships_returns_graph():
+    """Test concept relationships returns valid graph structure."""
+
+@pytest.mark.asyncio
+async def test_get_trends_aggregates_by_period():
+    """Test trends aggregates correctly by day/week/month."""
+
+@pytest.mark.asyncio
+async def test_get_reports_returns_complete_report():
+    """Test reports endpoint returns all required fields."""
+```
+
+**Acceptance Criteria**:
+- [ ] All 6 endpoints have unit tests
+- [ ] Edge cases covered (empty data, invalid params)
+- [ ] Test coverage > 80% for insights module
+
+### Sprint 2: Component Tests & Security (Week of Dec 16-20)
+
+#### Task 2.5.3: Add Graph Query Component Tests (3-4h) 🟡 P1
+**Status**: 📋 Planned
+**Files**:
+- `frontend/src/__tests__/components/graph/QueryBuilder.test.tsx` (NEW)
+- `frontend/src/__tests__/components/graph/QueryResults.test.tsx` (NEW)
+
+**Components to Test**:
+- `QueryBuilder` - Cypher query input, validation, suggestions
+- `QueryResults` - Result display, pagination, export
+
+**Test Scenarios**:
+| Test | Component | Behavior |
+|------|-----------|----------|
+| `test_query_builder_validates_cypher` | QueryBuilder | Invalid queries show error |
+| `test_query_builder_shows_suggestions` | QueryBuilder | Autocomplete works |
+| `test_query_results_displays_nodes` | QueryResults | Node data renders |
+| `test_query_results_handles_empty` | QueryResults | Empty state shown |
+| `test_query_results_pagination` | QueryResults | Next/prev works |
+
+#### Task 2.5.4: Complete API Key Manager Integration (2-3h) 🟡 P1
+**Status**: 📋 Planned
+**Files**: `backend/src/code_atlas/api/dependencies.py`
+
+**Problem**: TODO at line 60 for API key validation hardening
+
+**Actions**:
+1. Replace admin key check with full APIKeyManager validation
+2. Add key rotation support
+3. Add audit logging for key usage
+4. Add rate limiting per key
+
+**Acceptance Criteria**:
+- [ ] All API endpoints use APIKeyManager
+- [ ] Key rotation works without downtime
+- [ ] Audit logs capture key usage
+
+### Sprint 3: E2E Tests & Polish (Week of Dec 23-27)
+
+#### Task 2.5.5: Set Up E2E Test Framework (8-12h) 🟡 P1
+**Status**: 📋 Planned
+**Files**:
+- `e2e/` (NEW directory)
+- `e2e/playwright.config.ts` (NEW)
+- `e2e/tests/` (NEW)
+
+**Critical User Journeys to Test**:
+1. **Session Processing Flow**
+   - Discover sessions → Select → Process → View results
+2. **Graph Query Flow**
+   - Write query → Execute → View results → Export
+3. **Insights Dashboard Flow**
+   - Load dashboard → Filter data → View charts
+
+**Acceptance Criteria**:
+- [ ] Playwright configured and running
+- [ ] 3 critical journeys have E2E tests
+- [ ] Tests run in CI pipeline
+
+### Quality Metrics After Phase 2.5
+
+| Metric | Current | Target | Status |
+|--------|---------|--------|--------|
+| Backend Test Coverage | 82% | 85% | 📋 Planned |
+| Frontend Test Coverage | 36% | 80% | 📋 Planned |
+| Insights API Coverage | 0% | 80% | 📋 Planned |
+| E2E Test Coverage | 0% | Basic | 📋 Planned |
+| ESLint Errors | 2 | 0 | 📋 Planned |
+| Security TODOs | 1 | 0 | 📋 Planned |
+
+### Definition of Done (Phase 2.5)
+
+- [ ] All 22 frontend tests passing
+- [ ] Insights API has 80%+ test coverage
+- [ ] Graph Query components have tests
+- [ ] API key management production-ready
+- [ ] E2E tests for critical journeys
+- [ ] ESLint errors resolved
+- [ ] Documentation updated

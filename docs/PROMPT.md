@@ -11,7 +11,7 @@
 ## Current State
 
 ### Branch
-`main` - Production branch with all P0/P1 improvements merged
+`main` - Production branch with all P0/P1/P2 improvements merged
 
 ### Recent Progress
 - ✅ Soft Launch Review completed - Frontend ready for GA
@@ -21,30 +21,42 @@
 - ✅ P1-3: Dynamic connection status (polls every 30s)
 - ✅ P1-4: Home page stats connected to API
 - ✅ P1-5: Code splitting with React.lazy() (bundle 530KB → 469KB)
-- ✅ Backend: 263 tests passing across 17 test files
+- ✅ P2 features: Export button, job cancellation UI, ARIA labels
+- ✅ Phase 2.2-2.5: Graph Query UI, Insights Dashboard, Monitoring, UX improvements
+- ✅ Backend: 266 tests passing across 17 test files (82% coverage)
+- ✅ Comprehensive codebase audit completed (see `docs/CODEBASE_AUDIT.md`)
 
 ### Current Focus
-Frontend is now soft launch ready. Next priorities are:
-1. P2 improvements (deferred nice-to-haves)
-2. Phase 2: Production Viability features
+Phase 2.5: Quality & Testing improvements - addressing critical test gaps
 
 ### Blockers/Issues
-- 8/22 frontend tests failing (Sessions.test.tsx - test expectations vs component behavior, not blocking)
-- ESLint has 2 errors (empty interfaces in types/api.ts), 23 warnings (mostly `any` types - non-blocking)
+- 🔴 **8/22 frontend tests failing** (Sessions.test.tsx - mock hoisting, test expectations)
+- 🔴 **Insights API 0% test coverage** (6 endpoints untested)
+- 🟡 **Graph Query UI 0% test coverage** (new feature)
+- 🟡 **API key management TODO** in dependencies.py:60
+- 🟢 ESLint has 2 errors (empty interfaces in types/api.ts), 23 warnings (mostly `any` types)
 
 ---
 
 ## Active Plan
 **Plan File**: `docs/PLAN.md`
-**Current Phase**: Phase 2 - Production Viability
-**Current Task**: REST API, authentication, scheduling ready (pending prioritization)
-**Status**: Soft launch COMPLETE, ready for GA preparation
+**Current Phase**: Phase 2.5 - Quality & Testing
+**Current Task**: Address critical test coverage gaps
+**Status**: 95% complete, test hardening in progress
 
-### Immediate Next Steps
-1. ✅ Fix remaining frontend tests (mock hoisting issues resolved - 11 failed → 8 failed)
-2. ✅ Fix ESLint errors in test and client files (5 errors → 2 errors remaining in types/api.ts)
-3. Implement P2 features if desired (export button, job cancellation UI, ARIA labels)
-4. Begin Phase 2 features (multi-tenancy, enterprise features)
+### Immediate Next Steps (Phase 2.5 - Sprint 1)
+1. **🔴 P0**: Fix frontend test failures (8/22 failing) - 2-3h
+   - Fix `renderWithQueryClient` export in test utils
+   - Update test expectations to match component behavior
+2. **🔴 P0**: Add Insights API tests (0% → 80%) - 4-6h
+   - 6 endpoints need unit tests
+   - File: `backend/tests/test_insights_api.py`
+3. **🟡 P1**: Add Graph Query component tests - 3-4h
+   - QueryBuilder, QueryResults components
+4. **🟡 P1**: Complete API key manager integration - 2-3h
+   - Replace TODO with full validation
+5. **🟡 P1**: Set up E2E test framework - 8-12h
+   - Playwright for critical user journeys
 
 ---
 
@@ -57,10 +69,13 @@ Frontend is now soft launch ready. Next priorities are:
 | `frontend/src/components/error/ErrorBoundary.tsx` | Error handling component |
 | `frontend/src/components/layout/Layout.tsx` | Main layout with dynamic connection status |
 | `frontend/src/pages/Home.tsx` | Landing page with API-connected stats |
+| `frontend/src/pages/Graph.tsx` | Graph visualization with Query UI |
+| `frontend/src/pages/Insights.tsx` | Insights dashboard |
 | `frontend/src/api/client.ts` | API client class |
 | `backend/src/code_atlas/server.py` | FastAPI server entry point |
-| `docs/SOFT_LAUNCH_REVIEW.md` | Full review with P0/P1/P2 analysis |
-| `docs/PLAN.md` | Overall implementation plan |
+| `backend/src/code_atlas/api/v1/insights.py` | Insights API endpoints (0% test coverage) |
+| `docs/CODEBASE_AUDIT.md` | Comprehensive codebase audit with test gap analysis |
+| `docs/PLAN.md` | Overall implementation plan with Phase 2.5 details |
 
 ### Recent Decisions
 - **Code splitting via lazy()**: Improves initial load time, separate chunks per page
@@ -101,10 +116,10 @@ cd frontend && npm run build
 
 ### Run Tests
 ```bash
-# Backend (263 tests)
+# Backend (266 tests, 82% coverage)
 cd backend && uv run pytest -v
 
-# Frontend (11/22 passing)
+# Frontend (14/22 passing - 8 failing in Sessions.test.tsx)
 cd frontend && npm test -- --run
 ```
 
@@ -141,6 +156,7 @@ code-atlas/
 └── docs/
     ├── PLAN.md              # Implementation plan
     ├── SOFT_LAUNCH_REVIEW.md # Review report
+    ├── CODEBASE_AUDIT.md    # Comprehensive codebase audit (2025-01-30)
     └── PROMPT.md            # This file
 ```
 
@@ -181,6 +197,6 @@ After each change:
 
 To continue work, start with:
 ```
-Read docs/PROMPT.md and docs/SOFT_LAUNCH_REVIEW.md, verify build passes, then address remaining P2 items or begin Phase 2 features.
+Read docs/PROMPT.md and docs/CODEBASE_AUDIT.md, verify build passes, then address Phase 2.5 test coverage gaps (frontend tests, Insights API tests).
 DO NOT STOP! Continue with the plan like an empowered, pragmatic senior engineer.
 ```
