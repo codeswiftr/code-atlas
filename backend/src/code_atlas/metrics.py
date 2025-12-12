@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import psutil
 import threading
-import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, ClassVar
+from typing import ClassVar
 
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, Summary, generate_latest, start_http_server
-from prometheus_client.core import REGISTRY
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest, start_http_server
 
 from .config import AtlasSettings
 from .logging_config import get_logger
@@ -177,6 +175,87 @@ class AtlasMetrics:
             f"{ns}_error_rate",
             "Current error rate (errors per minute)",
             ["component"],
+            registry=self.registry
+        )
+
+        # Business metrics - User activity
+        self.api_keys_active = Gauge(
+            f"{ns}_api_keys_active",
+            "Number of active API keys",
+            registry=self.registry
+        )
+
+        self.api_requests_by_key = Counter(
+            f"{ns}_api_requests_by_key_total",
+            "Total API requests per API key",
+            ["key_id", "endpoint"],
+            registry=self.registry
+        )
+
+        self.unique_users_daily = Gauge(
+            f"{ns}_unique_users_daily",
+            "Number of unique API keys used in last 24 hours",
+            registry=self.registry
+        )
+
+        # Business metrics - Graph growth
+        self.graph_entities_daily = Counter(
+            f"{ns}_graph_entities_daily_total",
+            "Number of entities created per day",
+            ["entity_type"],
+            registry=self.registry
+        )
+
+        self.graph_relationships_daily = Counter(
+            f"{ns}_graph_relationships_daily_total",
+            "Number of relationships created per day",
+            ["relationship_type"],
+            registry=self.registry
+        )
+
+        self.graph_growth_rate = Gauge(
+            f"{ns}_graph_growth_rate",
+            "Entities created per hour",
+            registry=self.registry
+        )
+
+        # Business metrics - Cost efficiency
+        self.cost_efficiency_entities_per_dollar = Gauge(
+            f"{ns}_cost_efficiency_entities_per_dollar",
+            "Number of entities created per dollar spent",
+            registry=self.registry
+        )
+
+        self.cost_efficiency_sessions_per_dollar = Gauge(
+            f"{ns}_cost_efficiency_sessions_per_dollar",
+            "Number of sessions processed per dollar spent",
+            registry=self.registry
+        )
+
+        # Business metrics - Feature usage
+        self.endpoint_usage_total = Counter(
+            f"{ns}_endpoint_usage_total",
+            "Total requests per API endpoint",
+            ["endpoint", "method"],
+            registry=self.registry
+        )
+
+        self.query_types_total = Counter(
+            f"{ns}_query_types_total",
+            "Total queries by type",
+            ["query_type"],
+            registry=self.registry
+        )
+
+        self.rag_queries_total = Counter(
+            f"{ns}_rag_queries_total",
+            "Total RAG queries executed",
+            registry=self.registry
+        )
+
+        self.hybrid_searches_total = Counter(
+            f"{ns}_hybrid_searches_total",
+            "Total hybrid searches executed",
             registry=self.registry
         )
 

@@ -68,3 +68,35 @@ groups:
           summary: "Code Atlas API is down"
           description: "Code Atlas API service has been down for more than 1 minute"
 
+      # Database connection failures
+      - alert: DatabaseConnectionFailure
+        expr: |
+          code_atlas_db_connection_errors_total > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection failures detected"
+          description: "Code Atlas is experiencing database connection failures"
+
+      # Low disk space
+      - alert: LowDiskSpace
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is below 10% (current: {{ $value }}%)"
+
+      # High cost per session
+      - alert: HighCostPerSession
+        expr: |
+          rate(code_atlas_cost_per_session_usd[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High cost per session"
+          description: "Average cost per session is ${{ $value }} (threshold: $0.05)"

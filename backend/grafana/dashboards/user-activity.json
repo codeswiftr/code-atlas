@@ -1,0 +1,95 @@
+{
+  "dashboard": {
+    "title": "User Activity Analytics",
+    "tags": ["code-atlas", "users", "analytics"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active API Keys",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "code_atlas_api_keys_active",
+            "legendFormat": "Active Keys"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Unique Users (24h)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "code_atlas_unique_users_daily",
+            "legendFormat": "Unique Users"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "API Requests by Endpoint",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "sum by (endpoint) (rate(code_atlas_endpoint_usage_total[5m]))",
+            "legendFormat": "{{endpoint}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Top API Keys by Usage",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 6, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "topk(10, sum by (key_id) (code_atlas_api_requests_by_key_total))",
+            "format": "table"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Feature Usage",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 6, "x": 6, "y": 12 },
+        "targets": [
+          {
+            "expr": "sum by (query_type) (code_atlas_query_types_total)",
+            "legendFormat": "{{query_type}}"
+          },
+          {
+            "expr": "code_atlas_rag_queries_total",
+            "legendFormat": "RAG Queries"
+          },
+          {
+            "expr": "code_atlas_hybrid_searches_total",
+            "legendFormat": "Hybrid Searches"
+          }
+        ]
+      }
+    ]
+  }
+}

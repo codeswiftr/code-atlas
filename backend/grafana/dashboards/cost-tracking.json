@@ -1,0 +1,113 @@
+{
+  "dashboard": {
+    "title": "Cost Tracking",
+    "tags": ["code-atlas", "cost"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total Cost (USD)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "code_atlas_cost_total_usd",
+            "legendFormat": "Total Cost"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Cost Per Session",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "avg(code_atlas_cost_per_session_usd)",
+            "legendFormat": "Avg Cost/Session"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 4
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Daily Cost Trend",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "increase(code_atlas_cost_total_usd[1d])",
+            "legendFormat": "Daily Cost"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Cost by Model",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 6, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "sum by (model) (code_atlas_cost_total_usd)",
+            "legendFormat": "{{model}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Cost Efficiency - Entities per Dollar",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 12 },
+        "targets": [
+          {
+            "expr": "code_atlas_cost_efficiency_entities_per_dollar",
+            "legendFormat": "Entities/$"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Cost Efficiency - Sessions per Dollar",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
+        "targets": [
+          {
+            "expr": "code_atlas_cost_efficiency_sessions_per_dollar",
+            "legendFormat": "Sessions/$"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 2
+          }
+        }
+      }
+    ]
+  }
+}

@@ -504,6 +504,65 @@ spec:
    curl http://localhost:8000/status | jq .system
    ```
 
+## Enhanced Dashboards
+
+Code Atlas includes comprehensive Grafana dashboards for monitoring:
+
+### Available Dashboards
+
+1. **API Performance** (`api-performance.json`)
+   - Request rate and latency metrics
+   - Error rates by endpoint
+   - P50/P95/P99 latency percentiles
+
+2. **Cost Tracking** (`cost-tracking.json`)
+   - Total cost and daily trends
+   - Cost per session
+   - Cost by model
+   - Cost efficiency metrics (entities/$ and sessions/$)
+
+3. **User Activity** (`user-activity.json`)
+   - Active API keys
+   - Unique users (24h)
+   - API requests by endpoint
+   - Feature usage (query types, RAG queries, hybrid searches)
+
+4. **Error Analysis** (`error-analysis.json`)
+   - Total errors and error rates
+   - Errors by component and type
+   - Error timeline and trends
+
+5. **Graph Statistics** (`graph-statistics.json`)
+   - Node and relationship counts
+   - Graph growth metrics
+   - Entity distribution
+
+6. **Pipeline Overview** (`pipeline-overview.json`)
+   - Session processing metrics
+   - Extraction performance
+   - Pipeline throughput
+
+7. **System Health** (`system-health.json`)
+   - CPU, memory, disk usage
+   - Process metrics
+   - System resource trends
+
+### Alerting Rules
+
+Prometheus alerting rules are configured in `backend/prometheus/alerts.yml`:
+
+- **HighErrorRate**: Error rate >5% for 5 minutes
+- **CostThresholdExceeded**: Daily cost >$50
+- **HighAPILatency**: P95 latency >1s for 5 minutes
+- **HighCostPerSession**: Cost per session >$0.05
+- **ServiceDown**: API service down for >1 minute
+- **DatabaseConnectionFailure**: DB connection errors
+- **LowDiskSpace**: Disk space <10%
+- **HighCPUUsage**: CPU >80% for 10 minutes
+- **HighMemoryUsage**: Memory >2GB for 10 minutes
+
+See `backend/docs/alerts.md` for alert response procedures and runbook.
+
 ### Debug Commands
 
 ```bash

@@ -1,0 +1,102 @@
+{
+  "dashboard": {
+    "title": "Error Analysis",
+    "tags": ["code-atlas", "errors", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total Errors",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(code_atlas_errors_total)",
+            "legendFormat": "Total"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 10, "color": "yellow" },
+                { "value": 100, "color": "red" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Error Rate",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "rate(code_atlas_errors_total[5m])",
+            "legendFormat": "Errors/min"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "color": { "mode": "thresholds" }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Errors by Component",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "sum by (component) (rate(code_atlas_errors_total[5m]))",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Errors by Type",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 6, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "sum by (error_type) (code_atlas_errors_total)",
+            "legendFormat": "{{error_type}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Error Timeline",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 6, "x": 6, "y": 12 },
+        "targets": [
+          {
+            "expr": "rate(code_atlas_errors_total[5m])",
+            "legendFormat": "Error Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        }
+      }
+    ]
+  }
+}
