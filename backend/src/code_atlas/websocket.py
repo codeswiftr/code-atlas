@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import asyncio
 from typing import Dict
 
 from fastapi import WebSocket, WebSocketDisconnect
 from .logging_config import get_logger
-from .job_store import get_job_store, JobStore
+from .job_store import get_job_store
 
 logger = get_logger(__name__)
 

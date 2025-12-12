@@ -13,7 +13,6 @@ from ...schemas.auth import (
     APIKeyCreateRequest,
     APIKeyCreateResponse,
     APIKeyInfo,
-    APIKeyScope,
     APIKeyUsageStats,
 )
 from ..dependencies import ApiKey

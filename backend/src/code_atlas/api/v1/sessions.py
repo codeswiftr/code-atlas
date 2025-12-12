@@ -11,9 +11,8 @@ from ...config import AtlasSettings
 from ...job_store import JobStore, get_job_store
 from ...logging_config import get_logger
 from ...session_discovery import SessionDiscovery
-from ...session_parser import SessionParser
 from ...pipeline import PipelineRunner
-from ..dependencies import Settings, Discovery, ApiKey
+from ..dependencies import Settings, ApiKey
 from ...schemas.sessions import (
     SessionDiscoveryRequest,
     SessionDiscoveryResponse,

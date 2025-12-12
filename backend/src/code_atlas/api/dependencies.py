@@ -40,7 +40,7 @@ def get_graph_populator(
 
 async def verify_api_key(
     x_api_key: Annotated[str | None, Header()] = None,
-    settings: AtlasSettings = Depends(get_settings),
+    settings: Annotated[AtlasSettings, Depends(get_settings)] = ...,  # type: ignore[assignment]
 ) -> str:
     """Verify API key from header.
 

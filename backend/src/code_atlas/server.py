@@ -7,7 +7,6 @@ import signal
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -15,7 +14,7 @@ import psutil
 
 from .config import AtlasSettings
 from .logging_config import get_logger
-from .metrics import AtlasMetrics, init_metrics
+from .metrics import init_metrics
 
 logger = get_logger(__name__)
 
