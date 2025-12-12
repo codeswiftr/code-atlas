@@ -4,14 +4,29 @@ Convert Claude Code session logs into a searchable knowledge graph.
 
 ## Features
 
+### Core Pipeline
 - **Session Discovery** - Scans ~/.claude/projects for session files
 - **LLM-Powered Extraction** - Uses Anthropic Claude or OpenRouter APIs
 - **Knowledge Graph** - Stores in FalkorDB for powerful Cypher queries
-- **REST API** - Full API for session management and graph queries
-- **React Frontend** - Interactive UI for browsing entities and visualizing graphs
 - **Entity Deduplication** - Automatic merging of similar entities
-- **Real-Time Updates** - WebSocket support for live job status
 - **Cost Controls** - Enforces spending limits ($0.02/session default)
+
+### GraphRAG (Phase 3)
+- **Semantic Embeddings** - Sentence-transformers for entity embeddings
+- **Hybrid Search** - Combined Cypher + vector similarity search
+- **RAG Q&A Interface** - Ask natural language questions about your codebase
+- **Vector Storage** - FalkorDB property-based vector storage
+
+### Integration
+- **REST API** - Full API for session management and graph queries
+- **MCP Server** - Model Context Protocol for Claude Desktop integration
+- **React Frontend** - Interactive UI for browsing entities and visualizing graphs
+- **Real-Time Updates** - WebSocket support for live job status
+
+### Monitoring
+- **Prometheus Metrics** - Request latency, error rates, job status
+- **Grafana Dashboards** - Cost tracking, user activity, error analysis
+- **Health Endpoints** - Liveness and readiness probes
 
 ## Quick Start (3 Steps)
 
@@ -82,6 +97,7 @@ make docker-down  # Stop Docker services
 
 ## API Endpoints
 
+### Sessions & Graph
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/v1/sessions/discover` | GET | Discover available sessions |
@@ -90,6 +106,17 @@ make docker-down  # Stop Docker services
 | `/api/v1/graph/entities` | GET | List entities |
 | `/api/v1/graph/entities/search` | GET | Full-text search |
 | `/api/v1/graph/visualization` | GET | Get D3.js/Cytoscape data |
+
+### GraphRAG (Phase 3)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/insights/rag/query` | POST | Ask questions about your codebase |
+| `/api/v1/insights/search/hybrid` | POST | Combined Cypher + vector search |
+| `/api/v1/insights/embeddings/generate` | POST | Generate embeddings for entities |
+
+### Real-Time
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/ws/jobs/{job_id}` | WS | Real-time job updates |
 
 Full API documentation at http://localhost:8000/docs
@@ -142,21 +169,23 @@ similarity_threshold = 0.85
 ┌─────────────────────────────────────────────────────────────┐
 │                     React Frontend                          │
 │    (TypeScript, Vite, TailwindCSS, D3.js)                  │
+│    + RAG Q&A Interface                                      │
 ├─────────────────────────────────────────────────────────────┤
 │                     FastAPI Backend                         │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────┐ │
-│  │ Sessions │  │  Graph   │  │  Admin   │  │  WebSocket  │ │
-│  │   API    │  │   API    │  │   API    │  │   Updates   │ │
+│  │ Sessions │  │  Graph   │  │  RAG &   │  │    MCP      │ │
+│  │   API    │  │   API    │  │ Insights │  │   Server    │ │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └─────────────┘ │
 ├───────┼─────────────┼─────────────┼─────────────────────────┤
-│  ┌────▼─────┐  ┌────▼─────┐  ┌────▼─────┐                  │
-│  │ JobStore │  │  Graph   │  │ APIKey   │                  │
-│  │ (SQLite) │  │Populator │  │ Manager  │                  │
-│  └──────────┘  └────┬─────┘  └──────────┘                  │
-├─────────────────────┼──────────────────────────────────────┤
-│               ┌─────▼─────┐                                │
-│               │ FalkorDB  │  (Graph Database)              │
-│               └───────────┘                                │
+│  ┌────▼─────┐  ┌────▼─────┐  ┌────▼─────┐  ┌────────────┐  │
+│  │ JobStore │  │  Graph   │  │  Hybrid  │  │ Embeddings │  │
+│  │ (SQLite) │  │Populator │  │  Search  │  │  Service   │  │
+│  └──────────┘  └────┬─────┘  └────┬─────┘  └──────┬─────┘  │
+├─────────────────────┼─────────────┼──────────────┼─────────┤
+│               ┌─────▼─────────────▼──────────────▼───┐     │
+│               │           FalkorDB                    │     │
+│               │   (Graph Database + Vector Storage)   │     │
+│               └──────────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -168,6 +197,14 @@ similarity_threshold = 0.85
 - **EntityResolver** - Similarity-based entity merging
 - **JobStore** - SQLite persistence for background jobs
 - **APIKeyManager** - Scoped API key authentication
+
+### Phase 3 Components
+
+- **EmbeddingService** - Sentence-transformer embeddings for entities
+- **VectorStore** - FalkorDB property-based vector storage
+- **HybridSearch** - Combined Cypher + vector similarity queries
+- **RAGService** - Natural language Q&A over knowledge graph
+- **MCPServer** - Model Context Protocol for Claude Desktop
 
 ## Testing
 
@@ -254,8 +291,10 @@ uv run code-atlas discover --root /custom/path
 ## Documentation
 
 - [RUNBOOK.md](docs/RUNBOOK.md) - Operations guide
-- [PLAN.md](docs/PLAN.md) - Implementation plan
-- [Active Context](docs/active-context.md) - Current status
+- [PLAN.md](docs/PLAN.md) - Implementation plan (Phase 4)
+- [GRAPHRAG.md](docs/GRAPHRAG.md) - GraphRAG architecture
+- [MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - Claude Desktop integration
+- [STRATEGIC_ASSESSMENT.md](docs/STRATEGIC_ASSESSMENT.md) - Project priorities
 - [Tech Context](docs/tech-context.md) - Architecture decisions
 
 ## Contributing
