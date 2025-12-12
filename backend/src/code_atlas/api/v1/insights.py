@@ -2,17 +2,14 @@
 
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
-from ...graph_populator import GraphPopulator
 from ...logging_config import get_logger
 from ..dependencies import Graph, ApiKey
 from ...schemas.graph import (
     EntityType,
-    RelationshipType,
-    EntityResponse,
 )
 from .graph import _parse_node_to_entity
 
@@ -22,10 +19,10 @@ router = APIRouter(prefix="/insights", tags=["Insights"])
 
 @router.get("/top-entities")
 async def get_top_entities(
+    graph: Graph,
+    api_key: ApiKey,
     limit: int = Query(default=10, ge=1, le=100),
     entity_type: EntityType | None = Query(default=None, alias="type"),
-    graph: Graph = Graph,
-    api_key: ApiKey = ApiKey,
 ) -> dict[str, Any]:
     """Get most mentioned entities."""
     try:
@@ -79,10 +76,10 @@ async def get_top_entities(
 
 @router.get("/recurring-problems")
 async def get_recurring_problems(
+    graph: Graph,
+    api_key: ApiKey,
     min_sessions: int = Query(default=2, ge=1, description="Minimum number of sessions"),
     limit: int = Query(default=20, ge=1, le=100),
-    graph: Graph = Graph,
-    api_key: ApiKey = ApiKey,
 ) -> dict[str, Any]:
     """Get problems that appear in multiple sessions."""
     try:
@@ -129,9 +126,9 @@ async def get_recurring_problems(
 
 @router.get("/popular-tools")
 async def get_popular_tools(
+    graph: Graph,
+    api_key: ApiKey,
     limit: int = Query(default=20, ge=1, le=100),
-    graph: Graph = Graph,
-    api_key: ApiKey = ApiKey,
 ) -> dict[str, Any]:
     """Get most used tools."""
     try:
@@ -176,9 +173,9 @@ async def get_popular_tools(
 
 @router.get("/concept-relationships")
 async def get_concept_relationships(
+    graph: Graph,
+    api_key: ApiKey,
     limit: int = Query(default=50, ge=1, le=200),
-    graph: Graph = Graph,
-    api_key: ApiKey = ApiKey,
 ) -> dict[str, Any]:
     """Get relationship patterns between concepts."""
     try:
@@ -238,9 +235,9 @@ async def get_concept_relationships(
 
 @router.get("/trends")
 async def get_trends(
+    graph: Graph,
+    api_key: ApiKey,
     days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
-    graph: Graph = Graph,
-    api_key: ApiKey = ApiKey,
 ) -> dict[str, Any]:
     """Get time-based trends for entity creation."""
     try:
@@ -323,8 +320,8 @@ async def get_trends(
 
 @router.get("/reports")
 async def get_insight_report(
-    graph: Graph = Graph,
-    api_key: ApiKey = ApiKey,
+    graph: Graph,
+    api_key: ApiKey,
 ) -> dict[str, Any]:
     """Generate comprehensive insight report."""
     try:
@@ -390,7 +387,7 @@ async def get_insight_report(
             WITH count(e) as total_nodes, labels(e)[0] as node_type
             RETURN node_type, total_nodes
         """
-        stats_result = graph.execute_query(stats_query, {})
+        graph.execute_query(stats_query, {})  # Execute query for completeness
         
         execution_time = (time.time() - start_time) * 1000
         
@@ -407,5 +404,64 @@ async def get_insight_report(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate report: {str(exc)}",
+        )
+
+
+# RAG endpoint - create new router file or add here
+from ...schemas.graph import RAGQueryRequest, RAGQueryResponse
+
+
+@router.post(
+    "/rag/query",
+    response_model=RAGQueryResponse,
+    summary="RAG question answering",
+    description="Answer natural language questions using retrieval-augmented generation over the knowledge graph.",
+)
+async def rag_query(
+    request: RAGQueryRequest,
+    graph: Graph,
+    api_key: ApiKey,
+) -> RAGQueryResponse:
+    """Answer a question using RAG over the knowledge graph."""
+    try:
+        start_time = time.time()
+
+        # Import RAG service and dependencies
+        from ...rag_service import create_rag_service
+        from ...vector_store import create_vector_store
+
+        # Create vector store and RAG service
+        vector_store = create_vector_store("falkordb", graph_populator=graph)
+        rag_service = create_rag_service(
+            graph_populator=graph,
+            vector_store=vector_store,
+            llm_client=None,  # TODO: Integrate with LLM client
+        )
+
+        # Answer question
+        result = rag_service.answer_question(
+            question=request.question,
+            entity_type=request.entity_type.value if request.entity_type else None,
+            include_sources=request.include_sources,
+        )
+
+        execution_time = (time.time() - start_time) * 1000
+
+        return RAGQueryResponse(
+            success=True,
+            answer=result["answer"],
+            sources=result.get("sources", []),
+            confidence=result.get("confidence", 0.0),
+            context_entities=result.get("context_entities", []),
+            search_results_count=result.get("search_results_count", 0),
+            execution_time_ms=execution_time,
+            message="Question answered successfully",
+        )
+
+    except Exception as exc:
+        logger.error("RAG query failed", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"RAG query failed: {str(exc)}",
         )
 

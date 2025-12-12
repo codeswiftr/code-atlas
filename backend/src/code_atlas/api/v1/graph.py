@@ -4,12 +4,10 @@ import time
 from difflib import SequenceMatcher
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
-from ...config import AtlasSettings
-from ...graph_populator import GraphPopulator
 from ...logging_config import get_logger
-from ..dependencies import Settings, Graph, ApiKey
+from ..dependencies import Graph, ApiKey
 from ...schemas.graph import (
     EntityType,
     RelationshipType,
@@ -24,8 +22,10 @@ from ...schemas.graph import (
     GraphVisualizationResponse,
     NodeData,
     EdgeData,
-    EntitySearchRequest,
     GraphStatsResponse,
+    HybridSearchRequest,
+    HybridSearchResponse,
+    HybridSearchResultItem,
 )
 
 logger = get_logger(__name__)
@@ -295,6 +295,77 @@ async def search_entities(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to search entities: {str(exc)}",
+        )
+
+
+@router.post(
+    "/hybrid-search",
+    response_model=HybridSearchResponse,
+    summary="Hybrid search",
+    description="Search entities using both graph structure and semantic vector similarity.",
+)
+async def hybrid_search(
+    request: HybridSearchRequest,
+    graph: Graph,
+    api_key: ApiKey,
+) -> HybridSearchResponse:
+    """Perform hybrid search combining Cypher queries with vector similarity."""
+    try:
+        start_time = time.time()
+
+        # Import here to avoid circular dependencies
+        from ...hybrid_search import HybridSearch
+        from ...vector_store import create_vector_store
+
+        # Create vector store and hybrid search instances
+        vector_store = create_vector_store("falkordb", graph_populator=graph)
+        hybrid_search_instance = HybridSearch(
+            graph_populator=graph,
+            vector_store=vector_store,
+            graph_weight=request.graph_weight,
+            vector_weight=request.vector_weight,
+        )
+
+        # Perform hybrid search
+        search_results = hybrid_search_instance.search(
+            query=request.query,
+            entity_type=request.entity_type.value if request.entity_type else None,
+            limit=request.limit,
+            min_score=request.min_score,
+            use_graph_structure=request.use_graph_structure,
+            use_vector_search=request.use_vector_search,
+        )
+
+        # Convert to response format
+        result_items = [
+            HybridSearchResultItem(
+                entity_id=r.entity_id,
+                entity_name=r.entity_name,
+                entity_type=r.entity_type,
+                graph_score=r.graph_score,
+                vector_score=r.vector_score,
+                combined_score=r.combined_score,
+                metadata=r.metadata,
+            )
+            for r in search_results
+        ]
+
+        execution_time = (time.time() - start_time) * 1000
+
+        return HybridSearchResponse(
+            success=True,
+            results=result_items,
+            total=len(result_items),
+            query=request.query,
+            execution_time_ms=execution_time,
+            message=f"Hybrid search found {len(result_items)} results",
+        )
+
+    except Exception as exc:
+        logger.error("Hybrid search failed", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Hybrid search failed: {str(exc)}",
         )
 
 

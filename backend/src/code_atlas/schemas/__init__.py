@@ -24,6 +24,19 @@ from .graph import (
     GraphVisualizationResponse,
     NodeData,
     EdgeData,
+    HybridSearchRequest,
+    HybridSearchResponse,
+    HybridSearchResultItem,
+    RAGQueryRequest,
+    RAGQueryResponse,
+)
+from .embeddings import (
+    BatchEmbeddingRequest,
+    BatchEmbeddingResponse,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    SimilarityRequest,
+    SimilarityResponse,
 )
 
 __all__ = [
@@ -49,4 +62,16 @@ __all__ = [
     "GraphVisualizationResponse",
     "NodeData",
     "EdgeData",
+    "HybridSearchRequest",
+    "HybridSearchResponse",
+    "HybridSearchResultItem",
+    "RAGQueryRequest",
+    "RAGQueryResponse",
+    # Embeddings
+    "EmbeddingRequest",
+    "EmbeddingResponse",
+    "BatchEmbeddingRequest",
+    "BatchEmbeddingResponse",
+    "SimilarityRequest",
+    "SimilarityResponse",
 ]
