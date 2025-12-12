@@ -9,7 +9,8 @@ import {
   X,
   Wifi,
   WifiOff,
-  BarChart3
+  BarChart3,
+  MessageSquare
 } from 'lucide-react';
 import { apiClient } from '@/api/client';
 
@@ -45,6 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Graph', href: '/graph', icon: Network },
     { name: 'Entities', href: '/entities', icon: Database },
     { name: 'Insights', href: '/insights', icon: BarChart3 },
+    { name: 'RAG', href: '/rag', icon: MessageSquare },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -53,7 +55,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -74,7 +76,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </button>
         </div>
 
-        <nav className="mt-6 px-3">
+        <nav role="navigation" className="mt-6 px-3">
           <div className="space-y-1">
             {navigation.map((item) => {
               const Icon = item.icon;

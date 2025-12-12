@@ -12,6 +12,10 @@ import {
   GraphVisualizationResponse,
   GraphQueryRequest,
   GraphQueryResponse,
+  RAGQueryRequest,
+  RAGQueryResponse,
+  HybridSearchRequest,
+  HybridSearchResponse,
 } from '@/types/api';
 
 /**
@@ -254,6 +258,26 @@ export class CodeAtlasAPIClient {
    */
   async getInsightReport(): Promise<any> {
     return this.request<any>('/api/v1/insights/reports');
+  }
+
+  /**
+   * Query RAG endpoint for natural language question answering
+   */
+  async ragQuery(request: RAGQueryRequest): Promise<RAGQueryResponse> {
+    return this.request<RAGQueryResponse>('/api/v1/insights/rag/query', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Perform hybrid search combining graph and vector search
+   */
+  async hybridSearch(request: HybridSearchRequest): Promise<HybridSearchResponse> {
+    return this.request<HybridSearchResponse>('/api/v1/graph/hybrid-search', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
   }
 
   /**

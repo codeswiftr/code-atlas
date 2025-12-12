@@ -127,7 +127,7 @@ export interface ProcessingStatsResponse {
 }
 
 // Graph types
-export interface EntityResponse extends BaseEntity {}
+export type EntityResponse = BaseEntity
 
 export interface EntityListResponse {
   entities: EntityResponse[];
@@ -151,7 +151,7 @@ export interface EntitySearchResponse {
   message: string;
 }
 
-export interface RelationshipResponse extends BaseRelationship {}
+export type RelationshipResponse = BaseRelationship
 
 export interface RelationshipListResponse {
   relationships: RelationshipResponse[];
@@ -287,4 +287,58 @@ export interface VisualizationParams {
 
 export interface QueryParams {
   limit?: number;
+}
+
+// RAG types
+export interface RAGQueryRequest {
+  question: string;
+  entity_type?: EntityType;
+  context_limit?: number;
+  include_sources?: boolean;
+}
+
+export interface RAGQueryResponse {
+  success: boolean;
+  answer: string;
+  sources: string[];
+  confidence: number;
+  context_entities: Array<{
+    entity_id: string;
+    entity_name: string;
+    entity_type: string;
+  }>;
+  search_results_count: number;
+  execution_time_ms: number;
+  message: string;
+}
+
+// Hybrid search types
+export interface HybridSearchRequest {
+  query: string;
+  entity_type?: EntityType;
+  limit?: number;
+  min_score?: number;
+  graph_weight?: number;
+  vector_weight?: number;
+  use_graph_structure?: boolean;
+  use_vector_search?: boolean;
+}
+
+export interface HybridSearchResultItem {
+  entity_id: string;
+  entity_name: string;
+  entity_type: string;
+  graph_score: number;
+  vector_score: number;
+  combined_score: number;
+  metadata: Record<string, any>;
+}
+
+export interface HybridSearchResponse {
+  success: boolean;
+  results: HybridSearchResultItem[];
+  total: number;
+  query: string;
+  execution_time_ms: number;
+  message: string;
 }
