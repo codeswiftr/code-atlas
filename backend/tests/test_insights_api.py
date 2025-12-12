@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from code_atlas.api.main import create_app
 from code_atlas.config import AtlasSettings
-from code_atlas.schemas.graph import EntityType
 from pathlib import Path
 import tempfile
 

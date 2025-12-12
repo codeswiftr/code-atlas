@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import Mock, MagicMock
-import pytest
+from unittest.mock import Mock
 
-from code_atlas.entity_resolver import EntityResolver, MergeRecord
+from code_atlas.entity_resolver import EntityResolver
 
 
 class TestSimilarityCalculation:

@@ -2,7 +2,6 @@
 
 import json
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -11,8 +10,6 @@ from fastapi.testclient import TestClient
 
 from code_atlas.api.main import create_app
 from code_atlas.config import AtlasSettings
-from code_atlas.schemas.sessions import JobStatus
-from code_atlas.schemas.graph import EntityType, RelationshipType
 
 
 @pytest.fixture

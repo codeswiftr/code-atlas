@@ -129,7 +129,7 @@ class TestSearchEndpoint:
         )
 
         assert response.status_code == 200
-        data = response.json()
+        response.json()  # Verify response is valid JSON
         # Should find "Authentication" despite typo
         # (depends on fuzzy threshold)
 

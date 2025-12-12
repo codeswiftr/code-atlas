@@ -377,7 +377,7 @@ def test_performance_with_indexes(
         try:
             result = populator.client.execute_command("GRAPH.QUERY", test_graph_name, query)
             assert result is not None, f"Query failed: {query}"
-        except redis.RedisError as e:
+        except redis.RedisError:
             # If a specific query fails, it might be due to the specific FalkorDB version
             # This is acceptable for a basic performance test
             pass

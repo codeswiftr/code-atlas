@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -422,7 +421,6 @@ class TestServerErrorHandling:
     def test_concurrent_requests(self) -> None:
         """Test handling of concurrent requests."""
         import threading
-        import time
 
         settings = AtlasSettings(enable_metrics=True)
         server = MetricsServer(settings)

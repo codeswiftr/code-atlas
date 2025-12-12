@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import time
 from unittest.mock import Mock, patch
 
-import pytest
-from prometheus_client import CollectorRegistry, REGISTRY
+from prometheus_client import REGISTRY
 
 from code_atlas.config import AtlasSettings
 from code_atlas.metrics import AtlasMetrics, MetricsConfig, init_metrics
@@ -421,7 +419,7 @@ class TestMetricsIntegration:
         mock_session.total_tokens = 1000
 
         # Run extraction (should record metrics)
-        result = extractor.extract(mock_session)
+        extractor.extract(mock_session)
 
         # Verify metrics were recorded
         output = metrics.get_metrics_text()
