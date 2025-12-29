@@ -408,7 +408,24 @@ async def get_insight_report(
 
 
 # RAG endpoint - create new router file or add here
+import os
+
+from anthropic import Anthropic
+
 from ...schemas.graph import RAGQueryRequest, RAGQueryResponse
+
+
+def _get_anthropic_client() -> Anthropic | None:
+    """Create Anthropic client from environment if API key is configured.
+
+    Returns None if ANTHROPIC_API_KEY is not set, enabling graceful fallback
+    to context-based answers without LLM.
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        logger.debug("ANTHROPIC_API_KEY not set, RAG will use fallback answers")
+        return None
+    return Anthropic(api_key=api_key)
 
 
 @router.post(
@@ -430,12 +447,15 @@ async def rag_query(
         from ...rag_service import create_rag_service
         from ...vector_store import create_vector_store
 
+        # Create Anthropic client (returns None if API key not configured)
+        llm_client = _get_anthropic_client()
+
         # Create vector store and RAG service
         vector_store = create_vector_store("falkordb", graph_populator=graph)
         rag_service = create_rag_service(
             graph_populator=graph,
             vector_store=vector_store,
-            llm_client=None,  # TODO: Integrate with LLM client
+            llm_client=llm_client,
         )
 
         # Answer question

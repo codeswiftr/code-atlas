@@ -11,10 +11,18 @@ from __future__ import annotations
 
 from typing import Any
 
+from anthropic import Anthropic, APIError
+
 from .hybrid_search import HybridSearch
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Haiku pricing (per 1M tokens) - cost-effective for Q&A
+HAIKU_INPUT_COST = 0.25  # $0.25 per 1M input tokens
+HAIKU_OUTPUT_COST = 1.25  # $1.25 per 1M output tokens
+DEFAULT_RAG_MODEL = "claude-3-haiku-20240307"
+DEFAULT_MAX_TOKENS = 1024
 
 
 class RAGService:
@@ -180,31 +188,66 @@ class RAGService:
         question: str,
         context: str,
     ) -> str:
-        """Generate answer using LLM with context."""
+        """Generate answer using LLM with context.
+
+        Uses Anthropic Claude Haiku for cost-effective Q&A generation.
+        Falls back to context-based answer on API errors.
+        """
         if not self.llm_client:
             return self._generate_answer_from_context_simple(question, context)
 
         # Build prompt for LLM
-        prompt = f"""You are a helpful assistant answering questions about a codebase knowledge graph.
-
-Context from knowledge graph:
+        user_prompt = f"""Context from knowledge graph:
 {context}
 
 Question: {question}
 
 Based on the context provided, please answer the question. If the context doesn't contain enough information, say so.
-Be concise and cite specific entities when relevant.
+Be concise and cite specific entities when relevant."""
 
-Answer:"""
+        system_prompt = """You are a helpful assistant answering questions about a codebase knowledge graph.
+You have access to entities, relationships, and metadata extracted from coding sessions.
+Answer questions based solely on the provided context. Be accurate and concise."""
 
         try:
-            # TODO: Integrate with actual LLM client (Anthropic, OpenAI, etc.)
-            # For now, return placeholder
-            logger.info("LLM answer generation (placeholder)")
+            logger.info("Generating RAG answer with LLM", model=DEFAULT_RAG_MODEL)
+
+            response = self.llm_client.messages.create(
+                model=DEFAULT_RAG_MODEL,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+
+            # Extract answer from response
+            answer = response.content[0].text
+
+            # Log token usage for cost tracking
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+            cost = self._estimate_rag_cost(input_tokens, output_tokens)
+
+            logger.info(
+                "RAG answer generated",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                estimated_cost_usd=cost,
+            )
+
+            return answer
+
+        except APIError as exc:
+            logger.warning("Anthropic API error, using fallback", error=str(exc))
             return self._generate_answer_from_context_simple(question, context)
         except Exception as exc:
             logger.warning("LLM generation failed, using fallback", error=str(exc))
             return self._generate_answer_from_context_simple(question, context)
+
+    def _estimate_rag_cost(self, input_tokens: int, output_tokens: int) -> float:
+        """Estimate cost for RAG query based on Haiku pricing."""
+        input_cost = (input_tokens / 1_000_000) * HAIKU_INPUT_COST
+        output_cost = (output_tokens / 1_000_000) * HAIKU_OUTPUT_COST
+        return input_cost + output_cost
 
     def _generate_answer_from_context(
         self,
