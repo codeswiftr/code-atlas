@@ -12,14 +12,14 @@ from ..logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# Note: MCP protocol implementation requires MCP SDK
-# This is a placeholder structure - actual implementation would use mcp SDK
+# MCP protocol implementation using official SDK
 try:
-    # Try importing MCP SDK if available
-    from mcp import Server  # type: ignore[import-untyped]
+    from mcp.server import Server
+    from mcp.types import Resource, Tool
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
+    Server = None  # type: ignore[misc,assignment]
     logger.warning("MCP SDK not available. Install with: uv add mcp")
 
 
@@ -49,35 +49,51 @@ class MCPServer:
         self.tool_manager = tool_manager
         self.server = Server("code-atlas")
 
-        self._setup_resources()
-        self._setup_tools()
+        self._setup_handlers()
 
         logger.info("MCP server initialized")
 
-    def _setup_resources(self) -> None:
-        """Register resources with MCP server."""
-        # Register session resources
-        @self.server.list_resources()  # type: ignore[attr-defined]
-        async def list_resources() -> list[dict[str, Any]]:
+    def _setup_handlers(self) -> None:
+        """Register handlers with MCP server using decorator pattern."""
+
+        @self.server.list_resources()
+        async def handle_list_resources() -> list[Resource]:
             """List all available resources."""
-            return await self.resource_manager.list_all()
+            resources = await self.resource_manager.list_all()
+            return [
+                Resource(
+                    uri=r.get("uri", ""),
+                    name=r.get("name", ""),
+                    description=r.get("description"),
+                    mimeType=r.get("mimeType", "application/json"),
+                )
+                for r in resources
+            ]
 
-        @self.server.get_resource()  # type: ignore[attr-defined]
-        async def get_resource(uri: str) -> dict[str, Any]:
-            """Get a specific resource."""
-            return await self.resource_manager.get(uri)
+        @self.server.read_resource()
+        async def handle_read_resource(uri: str) -> str:
+            """Read a specific resource."""
+            result = await self.resource_manager.get(uri)
+            return str(result)
 
-    def _setup_tools(self) -> None:
-        """Register tools with MCP server."""
-        @self.server.list_tools()  # type: ignore[attr-defined]
-        async def list_tools() -> list[dict[str, Any]]:
+        @self.server.list_tools()
+        async def handle_list_tools() -> list[Tool]:
             """List all available tools."""
-            return await self.tool_manager.list_all()
+            tools = await self.tool_manager.list_all()
+            return [
+                Tool(
+                    name=t.get("name", ""),
+                    description=t.get("description"),
+                    inputSchema=t.get("inputSchema", {}),
+                )
+                for t in tools
+            ]
 
-        @self.server.call_tool()  # type: ignore[attr-defined]
-        async def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        @self.server.call_tool()
+        async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
             """Execute a tool."""
-            return await self.tool_manager.call(name, arguments)
+            result = await self.tool_manager.call(name, arguments)
+            return [result]
 
     async def run(self, stdio: bool = True) -> None:
         """Run MCP server.
@@ -87,8 +103,14 @@ class MCPServer:
         """
         if stdio:
             # Run with stdio transport (for Claude Desktop)
-            await self.server.run(stdio=True)  # type: ignore[attr-defined]
+            from mcp.server.stdio import stdio_server
+
+            async with stdio_server() as (read_stream, write_stream):
+                await self.server.run(
+                    read_stream,
+                    write_stream,
+                    self.server.create_initialization_options(),
+                )
         else:
-            # Run with HTTP transport (for web clients)
-            # TODO: Implement HTTP transport
+            # HTTP transport not yet implemented
             raise NotImplementedError("HTTP transport not yet implemented")
