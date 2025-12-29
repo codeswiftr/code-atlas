@@ -53,6 +53,15 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL('/insights');
     await expect(page.getByRole('heading', { name: /Insights/i })).toBeVisible();
   });
+
+  test('should navigate to RAG page', async ({ page }) => {
+    await page.goto('/');
+
+    await page.getByRole('link', { name: /RAG/i }).click();
+
+    await expect(page).toHaveURL('/rag');
+    await expect(page.getByRole('heading', { name: /RAG Query/i })).toBeVisible();
+  });
 });
 
 test.describe('Sessions Page', () => {
