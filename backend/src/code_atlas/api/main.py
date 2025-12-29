@@ -11,7 +11,7 @@ import psutil
 from ..config import AtlasSettings
 from ..logging_config import get_logger
 from ..metrics import init_metrics
-from .middleware import RateLimitMiddleware
+from .middleware import RateLimitMiddleware, SecurityHeadersMiddleware
 from .v1 import admin_router, graph_router, sessions_router, insights_router
 from ..websocket import websocket_job_updates
 
@@ -102,14 +102,44 @@ X-API-Key: your-api-key-here
         )
 
         # Add CORS middleware
+        # In development: allow localhost on any port + .local domains via regex
+        # In production: use explicit origins from settings
+        is_development = getattr(self.settings, "environment", "development") != "production"
+        allow_origin_regex = None
+        cors_origins: list[str] = []
+
+        if is_development:
+            # Development: allow localhost on any port + .local domains (Caddy proxy)
+            allow_origin_regex = r"^https?://(localhost|127\.0\.0\.1|[\w.-]+\.local)(:\d+)?$"
+        else:
+            cors_origins = (
+                self.settings.cors_origins
+                if hasattr(self.settings, "cors_origins")
+                else ["https://app.codeswiftr.com"]
+            )
+
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=self.settings.cors_origins
-            if hasattr(self.settings, "cors_origins")
-            else ["*"],
+            allow_origins=cors_origins,
+            allow_origin_regex=allow_origin_regex,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
+        )
+
+        # Add security headers middleware
+        # In production, enable strict security headers
+        # In development, disable HSTS to avoid issues with localhost
+        security_headers_enabled = not is_development
+        app.add_middleware(
+            SecurityHeadersMiddleware,
+            enabled=security_headers_enabled,
+            # Relaxed CSP in development to allow hot reload
+            csp_policy=(
+                "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'"
+                if is_development
+                else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+            ),
         )
 
         # Add rate limiting middleware
