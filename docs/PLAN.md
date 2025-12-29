@@ -1,6 +1,6 @@
-# PLAN - Code Atlas
+# PLAN - Code Atlas Phase 4
 
-## Current Status: Phase 4 Ready
+## Current Status: Phase 4 Implementation
 ## Last Updated: 2025-12-12
 
 ---
@@ -9,308 +9,294 @@
 
 | Phase | Status | Outcomes |
 |-------|--------|----------|
-| Phase 0 – Setup | ✅ Complete | Repo scaffold, Docker Compose, baseline tests |
-| Phase 1 – Core Pipeline | ✅ Complete | Session discovery, parser, extractor, graph writes, CLI |
-| Phase 1.5 – Foundational Stability | ✅ Complete | Logging, exceptions, memory efficiency, parallel processing, metrics |
-| Phase 2 – Production Viability | ✅ Complete | REST API, authentication, frontend, job persistence |
-| Phase 2.5 – Quality & Testing | ✅ Complete | Frontend tests (66/66), backend tests (289), E2E framework |
-| Phase 3 – GraphRAG & Integration | ✅ Complete | Embeddings, vector storage, hybrid search, RAG, MCP, monitoring |
-| **Phase 4 – Completion & Hardening** | 📋 **Ready** | LLM integration, E2E validation, security, documentation |
+| Phase 0-2.5 | ✅ Complete | Core pipeline, API, frontend, tests |
+| Phase 3 | ✅ Complete | GraphRAG, MCP structure, monitoring |
+| **Phase 4** | **In Progress** | LLM integration, security, E2E |
 
 ---
 
-# Phase 4: Integration, LLM Completion & Production Hardening
+## Phase 4 Overview
 
-## Overview
+**Goal:** Complete RAG with actual LLM answers, add security headers, validate MCP, expand E2E tests.
 
-Phase 4 completes the Phase 3 implementation by integrating the LLM for RAG answer generation, validating all features through comprehensive testing, and hardening the system for production deployment.
+**Key Insight from Evaluation:**
+- Rate limiting is ALREADY IMPLEMENTED in `middleware.py` (lines 15-132)
+- RAG service has complete structure but placeholder at line 201-204
+- MCP server is structural - needs SDK installation
+- Only 12 E2E tests exist, no coverage for RAG or Graph pages
 
-**Key Objectives:**
-1. Complete RAG with actual LLM answer generation
-2. Validate Phase 3 features through E2E and integration testing
-3. Add production security hardening (rate limiting, security headers)
-4. Polish documentation and user experience
+---
+
+# Epic 1: RAG LLM Integration
+
+## Problem
+RAG endpoint (`/api/v1/insights/rag/query`) returns context but generates placeholder answers instead of real LLM responses.
+
+**Location:** `backend/src/code_atlas/rag_service.py:201-204`
+```python
+# TODO: Integrate with actual LLM client (Anthropic, OpenAI, etc.)
+# For now, return placeholder
+logger.info("LLM answer generation (placeholder)")
+return self._generate_answer_from_context_simple(question, context)
+```
+
+## Files to Change
+
+| File | Changes |
+|------|---------|
+| `backend/src/code_atlas/rag_service.py` | Add Anthropic client, implement `_generate_answer_with_llm` |
+| `backend/src/code_atlas/api/v1/insights.py` | Pass Anthropic client to RAG service (line 438) |
+| `backend/src/code_atlas/config.py` | Add RAG cost limit settings |
+| `backend/tests/test_rag_llm.py` | New unit tests for LLM integration |
+
+## Functions
+
+### `rag_service.py`
+
+**`_generate_answer_with_llm(self, question: str, context: str) -> str`**
+Replace placeholder with actual Anthropic API call. Uses claude-3-haiku for cost efficiency. Constructs prompt with context and returns generated answer.
+
+**`_create_rag_prompt(self, question: str, context: str) -> str`**
+Builds structured prompt for RAG answer generation. Includes system instructions, context from knowledge graph, and user question.
+
+**`_estimate_rag_cost(self, prompt_tokens: int, completion_tokens: int) -> float`**
+Calculate cost for RAG query based on Haiku pricing. Used for cost tracking and limits.
+
+### `insights.py`
+
+**`_get_anthropic_client() -> Anthropic | None`**
+Factory function to create Anthropic client from environment. Returns None if API key not configured, enabling graceful fallback.
+
+## Tests
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_rag_with_llm_client_generates_answer` | LLM client called, answer returned |
+| `test_rag_without_llm_falls_back_to_context` | No LLM returns context-based answer |
+| `test_rag_llm_prompt_includes_context` | Prompt contains retrieved entities |
+| `test_rag_cost_tracked_per_query` | Cost recorded after LLM call |
+| `test_rag_handles_llm_api_error_gracefully` | API error returns fallback answer |
+| `test_rag_respects_max_tokens_limit` | Response truncated at limit |
+
+---
+
+# Epic 2: Security Headers Middleware
+
+## Problem
+Application has rate limiting but lacks security headers (HSTS, CSP, X-Frame-Options) required for production deployment.
+
+## Files to Change
+
+| File | Changes |
+|------|---------|
+| `backend/src/code_atlas/api/middleware.py` | Add `SecurityHeadersMiddleware` class |
+| `backend/src/code_atlas/api/main.py` | Register security middleware |
+| `backend/tests/test_security_headers.py` | New tests for header presence |
+
+## Functions
+
+### `middleware.py`
+
+**`SecurityHeadersMiddleware.__init__(self, app, *, hsts_max_age: int, csp_policy: str, frame_options: str)`**
+Initialize security headers middleware with configurable policies. Defaults to strict HSTS (1 year), basic CSP, and DENY frame options.
+
+**`SecurityHeadersMiddleware.dispatch(self, request, call_next) -> Response`**
+Add security headers to every response. Headers: Strict-Transport-Security, Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy.
+
+### `main.py`
+
+**Update `_create_app()` (line ~130)**
+Add SecurityHeadersMiddleware after CORS middleware. Use environment-aware defaults (relaxed in dev, strict in prod).
+
+## Tests
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_response_includes_hsts_header` | HSTS header present with max-age |
+| `test_response_includes_csp_header` | CSP header present |
+| `test_response_includes_frame_options` | X-Frame-Options DENY present |
+| `test_response_includes_content_type_options` | X-Content-Type-Options nosniff |
+| `test_security_headers_on_api_endpoints` | All /api/ paths have headers |
+| `test_security_headers_configurable` | Custom values applied correctly |
+
+---
+
+# Epic 3: MCP SDK Integration
+
+## Problem
+MCP server exists structurally but SDK not installed. Server raises ImportError when instantiated.
+
+**Location:** `backend/src/code_atlas/mcp/server.py:17-23`
+```python
+try:
+    from mcp import Server  # type: ignore[import-untyped]
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+```
+
+## Files to Change
+
+| File | Changes |
+|------|---------|
+| `backend/pyproject.toml` | Add `mcp` dependency |
+| `backend/src/code_atlas/mcp/server.py` | Verify SDK compatibility, fix any API mismatches |
+| `backend/src/code_atlas/mcp/tools.py` | Ensure tool definitions match SDK format |
+| `backend/tests/test_mcp_integration.py` | New integration tests |
+| `README.md` | Add MCP setup instructions |
+
+## Functions
+
+### `server.py`
+
+**`MCPServer._setup_resources(self) -> None`**
+Update resource registration to match MCP SDK API. Ensure async handlers return correct format.
+
+**`MCPServer._setup_tools(self) -> None`**
+Update tool registration to match MCP SDK API. Verify tool schemas are valid.
+
+**`MCPServer.run(self, stdio: bool) -> None`**
+Verify SDK's run method signature. Handle both stdio and potential HTTP transport.
+
+### New: `cli_mcp.py`
+
+**`start_mcp_server() -> None`**
+CLI entrypoint for MCP server. Creates dependencies, initializes server, runs event loop.
+
+## Tests
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_mcp_server_initializes_with_sdk` | Server creates without ImportError |
+| `test_mcp_list_resources_returns_valid_format` | Resources match MCP schema |
+| `test_mcp_list_tools_returns_valid_format` | Tools match MCP schema |
+| `test_mcp_call_tool_query_graph_works` | query_graph tool executes |
+| `test_mcp_call_tool_search_entities_works` | search_entities tool executes |
+| `test_mcp_server_handles_malformed_request` | Invalid request returns error |
+
+---
+
+# Epic 4: E2E Test Expansion
+
+## Problem
+Only 12 E2E tests exist covering navigation. No tests for RAG page, Graph visualization, or API error states.
+
+## Files to Change
+
+| File | Changes |
+|------|---------|
+| `frontend/e2e/rag.spec.ts` | New file: RAG page tests |
+| `frontend/e2e/graph.spec.ts` | New file: Graph visualization tests |
+| `frontend/e2e/navigation.spec.ts` | Add RAG link test, fix any failures |
+| `frontend/playwright.config.ts` | Verify test configuration |
+
+## Test Suites
+
+### `rag.spec.ts` (New)
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_rag_page_loads_with_input_form` | Page has question input and submit |
+| `test_rag_submitting_question_shows_loading` | Loading state appears on submit |
+| `test_rag_displays_answer_after_query` | Answer text visible after API call |
+| `test_rag_shows_source_entities` | Sources section lists entities |
+| `test_rag_handles_empty_results` | Empty state message shown |
+| `test_rag_handles_api_error` | Error message displayed gracefully |
+
+### `graph.spec.ts` (New)
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_graph_page_loads_visualization` | Canvas/SVG element present |
+| `test_graph_shows_loading_initially` | Loading indicator before data |
+| `test_graph_displays_nodes_after_load` | Nodes visible in visualization |
+| `test_graph_node_click_shows_details` | Click node opens details panel |
+| `test_graph_filter_by_entity_type` | Filter updates visible nodes |
+| `test_graph_handles_empty_graph` | Empty state for no entities |
+
+### `navigation.spec.ts` (Update)
+
+| Test Name | Behavior |
+|-----------|----------|
+| `test_navigate_to_rag_page` | Click RAG link, verify URL and heading |
+
+---
+
+## Implementation Order
+
+```
+Epic 1: RAG LLM Integration     [HIGHEST PRIORITY - Core Functionality]
+    │
+    ├── 1.1 Add Anthropic client to RAG service
+    ├── 1.2 Update insights.py to pass client
+    ├── 1.3 Add cost tracking settings
+    └── 1.4 Write unit tests
+
+Epic 2: Security Headers        [HIGH PRIORITY - Production Requirement]
+    │
+    ├── 2.1 Create SecurityHeadersMiddleware
+    ├── 2.2 Register in main.py
+    └── 2.3 Write tests
+
+Epic 3: MCP SDK Integration     [MEDIUM PRIORITY - Feature Completion]
+    │
+    ├── 3.1 Install MCP SDK
+    ├── 3.2 Verify server compatibility
+    ├── 3.3 Write integration tests
+    └── 3.4 Update README
+
+Epic 4: E2E Test Expansion      [MEDIUM PRIORITY - Quality Assurance]
+    │
+    ├── 4.1 Create rag.spec.ts
+    ├── 4.2 Create graph.spec.ts
+    └── 4.3 Update navigation.spec.ts
+```
+
+---
+
+## Effort Estimates
+
+| Epic | Tasks | Estimate |
+|------|-------|----------|
+| Epic 1: RAG LLM | 4 | 3h |
+| Epic 2: Security Headers | 3 | 1.5h |
+| Epic 3: MCP SDK | 4 | 2h |
+| Epic 4: E2E Tests | 3 | 2h |
+| **Total** | **14** | **8.5h** |
+
+---
 
 ## Success Criteria
 
-- [ ] RAG endpoint generates answers using Claude/Anthropic API
-- [ ] All E2E tests pass (12 existing + 6 new)
-- [ ] MCP server works with Claude Desktop
-- [ ] Rate limiting middleware active
-- [ ] Security headers (HSTS, CSP) in place
-- [ ] README updated with Phase 3/4 features
-- [ ] All tests pass with no deprecation warnings
+- [ ] `POST /api/v1/insights/rag/query` returns LLM-generated answers
+- [ ] All API responses include security headers (HSTS, CSP, X-Frame-Options)
+- [ ] MCP server starts without ImportError
+- [ ] 18+ E2E tests passing (12 existing + 6 new minimum)
+- [ ] All unit tests pass with no warnings
 
 ---
 
-## Technical Design
+## Dependencies
 
-### Architecture
+**Already Installed:**
+- `anthropic` - For LLM integration
+- `numpy`, `sentence-transformers` - For embeddings
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     React Frontend                          │
-│    + RAG.tsx (Q&A Interface)                               │
-├─────────────────────────────────────────────────────────────┤
-│                     FastAPI Backend                         │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────┐ │
-│  │ RAG API  │  │  Graph   │  │  MCP     │  │  Security   │ │
-│  │ +LLM Int │  │   API    │  │  Server  │  │  Middleware │ │
-│  └────┬─────┘  └──────────┘  └──────────┘  └─────────────┘ │
-├───────┼──────────────────────────────────────────────────────┤
-│  ┌────▼─────┐  ┌──────────┐  ┌──────────┐                  │
-│  │ Anthropic│  │ Hybrid   │  │ Vector   │                  │
-│  │ Client   │  │ Search   │  │ Store    │                  │
-│  └──────────┘  └──────────┘  └──────────┘                  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### RAG LLM Integration
-
-**Current State:** RAG retrieves context but uses placeholder for answer generation (line 201 in `rag_service.py`)
-
-**Target State:** Full LLM integration using existing Anthropic client pattern from `insight_extractor.py`
-
-```python
-# Integration approach - reuse existing Anthropic client
-from anthropic import Anthropic
-
-class RAGService:
-    def __init__(self, ..., anthropic_client: Anthropic | None = None):
-        self.llm_client = anthropic_client or Anthropic()
-
-    async def _generate_answer_with_llm(self, question: str, context: str) -> str:
-        response = self.llm_client.messages.create(
-            model="claude-3-haiku-20240307",  # Cost-effective for Q&A
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.content[0].text
-```
-
-### Security Middleware
-
-**New middleware stack:**
-1. Rate limiting (existing config, needs middleware)
-2. Security headers (HSTS, CSP, X-Frame-Options)
-3. Request size limits
-
-### Dependencies
-
-**Existing (already installed):**
-- anthropic (for LLM)
-- numpy, sentence-transformers (for embeddings)
-- fastapi, uvicorn (API framework)
-
-**New (to install):**
-- mcp (Model Context Protocol SDK)
+**To Install:**
+- `mcp` - Model Context Protocol SDK
 
 ---
 
-## Implementation Plan
+## Risk Mitigation
 
-### Phase 4.1: RAG LLM Integration (Priority 1)
-
-| Task | Description | Agent/Skill | Est |
-|------|-------------|-------------|-----|
-| 4.1.1 | Integrate Anthropic client into RAGService | backend-engineer | 2h |
-| 4.1.2 | Add streaming support for long answers | backend-engineer | 1h |
-| 4.1.3 | Add cost tracking for RAG queries | backend-engineer | 1h |
-| 4.1.4 | Create unit tests for LLM integration | qa-test-guardian | 1h |
-| 4.1.5 | Test with real questions on live graph | - | 1h |
-
-**Checkpoint:** RAG endpoint returns LLM-generated answers with source citations
-
----
-
-### Phase 4.2: E2E Testing Validation (Priority 1)
-
-| Task | Description | Agent/Skill | Est |
-|------|-------------|-------------|-----|
-| 4.2.1 | Run existing Playwright tests, fix failures | qa-test-guardian | 2h |
-| 4.2.2 | Add E2E tests for RAG page | qa-test-guardian | 2h |
-| 4.2.3 | Add E2E tests for Graph visualization | qa-test-guardian | 1h |
-| 4.2.4 | Add API integration tests for new endpoints | qa-test-guardian | 2h |
-| 4.2.5 | Document test results and coverage | - | 1h |
-
-**Checkpoint:** All E2E tests pass, critical user flows validated
-
----
-
-### Phase 4.3: MCP Integration Validation (Priority 2)
-
-| Task | Description | Agent/Skill | Est |
-|------|-------------|-------------|-----|
-| 4.3.1 | Install MCP SDK (`uv add mcp`) | - | 10m |
-| 4.3.2 | Test MCP server startup and tool listing | - | 1h |
-| 4.3.3 | Test MCP with Claude Desktop | - | 2h |
-| 4.3.4 | Fix any integration issues found | backend-engineer | 2h |
-| 4.3.5 | Document MCP setup in README | - | 1h |
-
-**Checkpoint:** MCP server works with Claude Desktop for queries
-
----
-
-### Phase 4.4: Production Security Hardening (Priority 2)
-
-| Task | Description | Agent/Skill | Est |
-|------|-------------|-------------|-----|
-| 4.4.1 | Add rate limiting middleware | backend-engineer | 2h |
-| 4.4.2 | Add security headers middleware | security-auditor | 1h |
-| 4.4.3 | Add request size limits | backend-engineer | 30m |
-| 4.4.4 | Review error responses for info leakage | security-auditor | 1h |
-| 4.4.5 | Add API key expiration enforcement | backend-engineer | 1h |
-| 4.4.6 | Security audit of new endpoints | security-auditor | 1h |
-
-**Checkpoint:** Security headers present, rate limiting active, no info leakage
-
----
-
-### Phase 4.5: Documentation & Polish (Priority 3)
-
-| Task | Description | Agent/Skill | Est |
-|------|-------------|-------------|-----|
-| 4.5.1 | Update README with GraphRAG features | - | 1h |
-| 4.5.2 | Update README with MCP integration | - | 1h |
-| 4.5.3 | Add RAG usage examples to docs | - | 1h |
-| 4.5.4 | Improve RAG page loading states | frontend-builder | 1h |
-| 4.5.5 | Add error messages and help text | frontend-builder | 1h |
-| 4.5.6 | Update API documentation | - | 1h |
-
-**Checkpoint:** Documentation complete, frontend polished
-
----
-
-## Testing Strategy
-
-### Unit Tests
-- **RAG LLM Integration:** Mock Anthropic client, test prompt construction, error handling
-- **Rate Limiting:** Test request counting, limit enforcement
-- **Security Headers:** Verify headers present in responses
-- **Coverage Target:** 80%+
-
-### Integration Tests
-- **RAG Pipeline:** End-to-end test with real embeddings and graph
-- **MCP Tools:** Test each tool returns valid data
-- **API Key Flow:** Test creation, validation, expiration
-
-### E2E Tests (Playwright)
-- **Navigation:** Home, Sessions, Entities, Graph, Insights, RAG pages
-- **RAG Flow:** Ask question → see answer → view sources
-- **Graph Viz:** Load graph → filter entities → click node
-- **Error States:** Invalid routes, API errors, empty states
-
----
-
-## Risks & Mitigations
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| LLM costs exceed budget | Medium | Use Haiku model, add cost limits per query |
-| MCP SDK compatibility | Low | SDK is stable, fallback to HTTP if needed |
-| Rate limiting complexity | Low | Use simple in-memory counter first |
-| E2E test flakiness | Medium | Add retries, use stable selectors |
-
----
-
-## Task Summary
-
-| Phase | Tasks | Total Est | Priority |
-|-------|-------|-----------|----------|
-| 4.1: RAG LLM | 5 | 6h | P1 |
-| 4.2: E2E Testing | 5 | 8h | P1 |
-| 4.3: MCP Validation | 5 | 6h | P2 |
-| 4.4: Security | 6 | 7h | P2 |
-| 4.5: Documentation | 6 | 6h | P3 |
-| **Total** | **27** | **33h** | - |
-
-**Estimated Duration:** 4-5 days
-
----
-
-## References
-
-- [Anthropic API Docs](https://docs.anthropic.com)
-- [MCP Protocol Spec](https://modelcontextprotocol.io)
-- [Playwright Docs](https://playwright.dev)
-- [FastAPI Security](https://fastapi.tiangolo.com/tutorial/security/)
-- [docs/GRAPHRAG.md](./GRAPHRAG.md) - GraphRAG architecture
-- [docs/MCP_INTEGRATION.md](./MCP_INTEGRATION.md) - MCP setup guide
-- [docs/STRATEGIC_ASSESSMENT.md](./STRATEGIC_ASSESSMENT.md) - Phase 4 priorities
-
----
-
-## Historical Phases (Complete)
-
-<details>
-<summary>Phase 0-1.5 Details (Click to expand)</summary>
-
-### Phase 1.5 Completion Summary ✅
-
-**Completion Date**: 2025-01-16
-
-#### Critical Technical Debt Resolved
-
-1. **Structured Logging** - JSON/console renderers, ISO timestamps, context variables
-2. **Exception Hierarchy** - `CodeAtlasError` base class, specific error types
-3. **Memory Efficiency** - `discover_generator()` for streaming processing
-4. **Parallel Processing** - `ProcessPoolExecutor` for concurrent sessions
-5. **Database Indexing** - Comprehensive FalkorDB indexing
-6. **Metrics & Monitoring** - Prometheus metrics, health endpoints
-
-</details>
-
-<details>
-<summary>Phase 2-2.5 Details (Click to expand)</summary>
-
-### Phase 2.5 Completion Summary ✅
-
-**Completion Date**: 2025-12-07
-
-#### Features Delivered
-
-1. **REST API** - 29 endpoints across 5 modules
-2. **Authentication** - API key management with SHA256 hashing
-3. **Frontend** - React + TypeScript + TailwindCSS
-4. **Job Persistence** - SQLite-backed background jobs
-5. **WebSocket** - Real-time job status updates
-6. **Testing** - 66/66 frontend tests, 289 backend tests
-
-</details>
-
-<details>
-<summary>Phase 3 Details (Click to expand)</summary>
-
-### Phase 3 Completion Summary ✅
-
-**Completion Date**: 2025-12-12
-
-#### Features Delivered
-
-1. **GraphRAG Foundation**
-   - Embedding generation (sentence-transformers)
-   - Vector storage (FalkorDB properties)
-   - Hybrid search (Cypher + vector similarity)
-   - RAG service (context retrieval)
-
-2. **MCP Integration**
-   - MCP server with stdio transport
-   - Resources: sessions, entities, insights, graph
-   - Tools: query_graph, search_entities, get_insights
-
-3. **Enhanced Monitoring**
-   - Grafana dashboards (cost, user activity, errors)
-   - Prometheus alerting rules
-   - Business metrics
-
-4. **Quality Fixes**
-   - E2E navigation role
-   - FastAPI type fixes
-   - Frontend RAG page
-
-</details>
+| Risk | Mitigation |
+|------|------------|
+| LLM API costs | Use Haiku model, add per-query cost limit |
+| MCP SDK API changes | Check SDK version, pin dependency |
+| E2E test flakiness | Use stable selectors, add retries |
+| Security header conflicts | Test CORS compatibility |
 
 ---
 
 **Plan Created:** 2025-12-12
-**Last Updated:** 2025-12-12
+**Ready for Implementation**
