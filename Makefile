@@ -195,6 +195,32 @@ run-llm:
 	cd backend && uv run code-atlas run --no-dry-run --use-llm --limit 5
 
 # ============================================================================
+# Database Migrations
+# ============================================================================
+
+migrate:
+	@echo "🔄 Running database migrations..."
+	cd backend && uv run alembic upgrade head
+	@echo "✅ Migrations complete"
+
+migrate-create:
+	@echo "📝 Creating new migration..."
+	@read -p "Migration message: " msg; \
+	cd backend && uv run alembic revision --autogenerate -m "$$msg"
+
+migrate-history:
+	@echo "📜 Migration history..."
+	cd backend && uv run alembic history
+
+migrate-current:
+	@echo "📍 Current migration..."
+	cd backend && uv run alembic current
+
+migrate-downgrade:
+	@echo "⬇️  Downgrading one migration..."
+	cd backend && uv run alembic downgrade -1
+
+# ============================================================================
 # Cleanup
 # ============================================================================
 

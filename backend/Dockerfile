@@ -22,7 +22,9 @@ ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
 
 # Copy dependency files first (better layer caching)
-COPY pyproject.toml uv.lock README.md ./
+# Note: README.md is optional, copy if exists
+COPY pyproject.toml uv.lock ./
+COPY README.md* ./
 
 # Copy application code (required for editable install)
 COPY src/ ./src/

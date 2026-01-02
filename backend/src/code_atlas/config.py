@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tomllib
+from enum import Enum
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -12,8 +13,23 @@ from pydantic_settings import BaseSettings
 import tomllib
 
 
+class Environment(str, Enum):
+    """Application environment."""
+
+    DEVELOPMENT = "development"
+    STAGING = "staging"
+    PRODUCTION = "production"
+
+
 class AtlasSettings(BaseSettings):
     """Environment-driven settings with safe defaults."""
+
+    # Environment detection
+    environment: Environment = Field(
+        default=Environment.DEVELOPMENT,
+        description="Application environment: development, staging, or production.",
+        alias="CODE_ATLAS_ENV",
+    )
 
     claude_root: Path = Field(
         default=Path("~/.claude/projects").expanduser(),
@@ -160,6 +176,26 @@ class AtlasSettings(BaseSettings):
     def session_root(self) -> Path:
         """Alias for claude_root for API consistency."""
         return self.claude_root
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production environment."""
+        return self.environment == Environment.PRODUCTION
+
+    @property
+    def is_development(self) -> bool:
+        """Check if running in development environment."""
+        return self.environment == Environment.DEVELOPMENT
+
+    @property
+    def is_staging(self) -> bool:
+        """Check if running in staging environment."""
+        return self.environment == Environment.STAGING
+
+    @property
+    def debug(self) -> bool:
+        """Enable debug mode in development only."""
+        return self.is_development
 
     model_config = {
         "env_file": ".env",

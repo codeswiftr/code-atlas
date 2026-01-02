@@ -1,0 +1,22 @@
+# Cloudflare Pages Configuration for Code Atlas Frontend
+# https://developers.cloudflare.com/pages/configuration/wrangler-configuration/
+
+name = "code-atlas"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "dist"
+
+# Build configuration
+[build]
+command = "npm run build"
+
+# Environment variables for production
+[vars]
+VITE_APP_NAME = "Code Atlas"
+
+# Production environment
+[env.production]
+vars = { VITE_APP_ENV = "production" }
+
+# Preview environment (for PR previews)
+[env.preview]
+vars = { VITE_APP_ENV = "preview" }

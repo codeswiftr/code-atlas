@@ -498,6 +498,167 @@ For deployment issues:
 [Any other relevant information]
 ```
 
+## Platform Deployment
+
+### Railway Backend Deployment
+
+Railway provides a managed container platform ideal for the Code Atlas backend.
+
+#### Prerequisites
+- Railway account (https://railway.app)
+- GitHub repository connected to Railway
+- Railway CLI installed: `npm install -g @railway/cli`
+
+#### Setup Steps
+
+1. **Create Railway Project**
+   ```bash
+   railway login
+   railway init
+   ```
+
+2. **Add FalkorDB Service**
+   - In Railway dashboard, click "New Service"
+   - Select "Docker Image"
+   - Use image: `falkordb/falkordb:latest`
+   - Set port: 6379
+
+3. **Add Redis Service** (optional, for caching)
+   - Add another Docker Image service
+   - Use image: `redis:7-alpine`
+   - Set port: 6380
+
+4. **Configure Environment Variables**
+   ```bash
+   # Required
+   railway variables set ANTHROPIC_API_KEY=sk-ant-...
+   railway variables set CODE_ATLAS_ENV=production
+   railway variables set CODE_ATLAS_ADMIN_API_KEY=your-secure-key
+
+   # Database URLs (Railway provides these automatically)
+   railway variables set FALKORDB_URL=${{FalkorDB.REDIS_URL}}
+   railway variables set REDIS_URL=${{Redis.REDIS_URL}}
+   ```
+
+5. **Deploy**
+   ```bash
+   railway up
+   ```
+
+6. **Verify Deployment**
+   ```bash
+   # Check health endpoint
+   curl https://your-app.railway.app/health
+
+   # Check API docs
+   open https://your-app.railway.app/docs
+   ```
+
+#### Railway Configuration Files
+- `railway.json` - Service definitions
+- `railway.toml` - Build configuration
+
+### Cloudflare Pages Frontend Deployment
+
+Cloudflare Pages provides fast, global CDN hosting for the React frontend.
+
+#### Prerequisites
+- Cloudflare account
+- Domain configured in Cloudflare DNS
+- Wrangler CLI: `npm install -g wrangler`
+
+#### Setup Steps
+
+1. **Login to Cloudflare**
+   ```bash
+   wrangler login
+   ```
+
+2. **Create Pages Project**
+   ```bash
+   cd frontend
+   wrangler pages project create code-atlas
+   ```
+
+3. **Configure Environment Variables**
+   In Cloudflare Dashboard > Pages > code-atlas > Settings > Environment Variables:
+   ```
+   VITE_API_URL = https://your-api.railway.app
+   VITE_APP_ENV = production
+   ```
+
+4. **Deploy**
+   ```bash
+   npm run build
+   wrangler pages deploy dist --project-name=code-atlas
+   ```
+
+5. **Configure Custom Domain**
+   - In Cloudflare Dashboard > Pages > code-atlas > Custom Domains
+   - Add: codeatlas.codeswiftr.com
+   - DNS is automatically configured
+
+#### Cloudflare Configuration Files
+- `frontend/wrangler.toml` - Pages configuration
+- `frontend/.env.production` - Production environment
+
+### GitHub Actions CI/CD
+
+The repository includes automated deployment via GitHub Actions.
+
+#### Required Secrets
+
+Add these secrets in GitHub > Settings > Secrets and variables > Actions:
+
+| Secret | Description |
+|--------|-------------|
+| `RAILWAY_TOKEN` | Railway deployment token |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Pages permissions |
+
+#### Required Variables
+
+Add these variables in GitHub > Settings > Secrets and variables > Actions > Variables:
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_API_URL` | Production API URL |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
+
+#### Workflow Triggers
+- **CI Pipeline**: Runs on all PRs and pushes
+- **CD Pipeline**: Deploys on merge to `main`
+
+### Database Migrations
+
+Code Atlas uses Alembic for database schema management.
+
+#### Running Migrations
+
+```bash
+# Apply all pending migrations
+make migrate
+
+# Check current migration status
+make migrate-current
+
+# View migration history
+make migrate-history
+
+# Create new migration (auto-generates from model changes)
+make migrate-create
+
+# Rollback one migration
+make migrate-downgrade
+```
+
+#### Production Migration
+
+Before deploying schema changes:
+1. Backup the database
+2. Test migration locally
+3. Deploy during low-traffic period
+4. Verify application health after migration
+
 ## Next Steps
 
 After successful beta deployment:
