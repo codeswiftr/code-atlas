@@ -284,6 +284,7 @@ def test_large_session_triggers_chunking() -> None:
     """Test that large sessions automatically trigger chunking."""
     extractor = InsightExtractor(use_llm=True, provider="anthropic")
     extractor.client = Mock()
+    extractor.provider = "anthropic"  # Reset after __post_init__ clears it (no API key in test)
 
     # Create large session (>12K tokens)
     # 60 messages * 1000 chars = 60,000 chars ~15,000 tokens
@@ -316,6 +317,7 @@ def test_small_session_no_chunking() -> None:
     """Test that small sessions do not trigger chunking."""
     extractor = InsightExtractor(use_llm=True, provider="anthropic")
     extractor.client = Mock()
+    extractor.provider = "anthropic"  # Reset after __post_init__ clears it (no API key in test)
 
     # Create small session (<12K tokens)
     # 5 messages * 200 chars = 1,000 chars ~250 tokens

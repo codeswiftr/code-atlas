@@ -22,12 +22,13 @@ ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
 
 # Copy dependency files first (better layer caching)
-# Note: README.md is optional, copy if exists
-COPY pyproject.toml uv.lock ./
-COPY README.md* ./
+# Note: When building with railway.json context from project root,
+# paths are relative to the root, not the Dockerfile location
+COPY backend/pyproject.toml backend/uv.lock ./
+COPY backend/README.md* ./
 
 # Copy application code (required for editable install)
-COPY src/ ./src/
+COPY backend/src/ ./src/
 
 # Install dependencies (production only)
 RUN uv sync --frozen --no-dev

@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
-from unittest.mock import Mock, patch
+import asyncio
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from code_atlas.config import AtlasSettings
+from code_atlas.metrics import AtlasMetrics
 from code_atlas.server import MetricsServer
+
+
+@pytest.fixture(autouse=True)
+def reset_metrics_singleton():
+    """Reset AtlasMetrics singleton before and after each test."""
+    AtlasMetrics._instance = None
+    yield
+    AtlasMetrics._instance = None
 
 
 class TestMetricsServer:
@@ -159,20 +169,23 @@ class TestMetricsServer:
         assert response.status_code == 500
         assert "Failed to get status" in response.json()["detail"]
 
-    @patch('code_atlas.server.uvicorn')
-    async def test_start_method(self, mock_uvicorn) -> None:
+    @pytest.mark.asyncio
+    @patch('uvicorn.Server')
+    @patch('uvicorn.Config')
+    async def test_start_method(self, mock_config_class, mock_server_class) -> None:
         """Test async start method."""
         mock_config = Mock()
-        mock_uvicorn.Config.return_value = mock_config
+        mock_config_class.return_value = mock_config
 
         mock_server = Mock()
-        mock_uvicorn.Server.return_value = mock_server
+        mock_server.serve = AsyncMock()  # serve() is an async method
+        mock_server_class.return_value = mock_server
 
         # Test start method
         await self.server.start()
 
         # Verify uvicorn configuration
-        mock_uvicorn.Config.assert_called_once_with(
+        mock_config_class.assert_called_once_with(
             app=self.server.app,
             host=self.settings.metrics_host,
             port=self.settings.metrics_port,
@@ -181,17 +194,22 @@ class TestMetricsServer:
         )
 
         # Verify server was created and started
-        mock_uvicorn.Server.assert_called_once_with(mock_config)
+        mock_server_class.assert_called_once_with(mock_config)
         mock_server.serve.assert_called_once()
 
     def test_run_method(self) -> None:
         """Test synchronous run method."""
         with patch('code_atlas.server.asyncio.run') as mock_run:
             self.server.run()
-            mock_run.assert_called_once_with(self.server.start())
+            mock_run.assert_called_once()
+            # Verify the argument is a coroutine from start()
+            args, _ = mock_run.call_args
+            assert asyncio.iscoroutine(args[0])
 
-    @patch('code_atlas.server.uvicorn')
-    async def test_start_disabled_metrics(self, mock_uvicorn) -> None:
+    @pytest.mark.asyncio
+    @patch('uvicorn.Server')
+    @patch('uvicorn.Config')
+    async def test_start_disabled_metrics(self, mock_config_class, mock_server_class) -> None:
         """Test start method when metrics are disabled."""
         disabled_settings = AtlasSettings(enable_metrics=False)
         disabled_server = MetricsServer(disabled_settings)
@@ -200,33 +218,42 @@ class TestMetricsServer:
         await disabled_server.start()
 
         # uvicorn should not be called
-        mock_uvicorn.Config.assert_not_called()
-        mock_uvicorn.Server.assert_not_called()
+        mock_config_class.assert_not_called()
+        mock_server_class.assert_not_called()
 
-    @patch('code_atlas.server.uvicorn')
-    @patch('code_atlas.server.signal')
-    async def test_signal_handlers(self, mock_signal, mock_uvicorn) -> None:
+    @pytest.mark.asyncio
+    @patch('code_atlas.server.signal.signal')
+    @patch('uvicorn.Server')
+    @patch('uvicorn.Config')
+    async def test_signal_handlers(self, mock_config_class, mock_server_class, mock_signal_func) -> None:
         """Test signal handler setup."""
+        import signal as signal_module
+
         mock_config = Mock()
-        mock_uvicorn.Config.return_value = mock_config
+        mock_config_class.return_value = mock_config
 
         mock_server = Mock()
-        mock_uvicorn.Server.return_value = mock_server
+        mock_server.serve = AsyncMock()  # serve() is an async method
+        mock_server_class.return_value = mock_server
 
         await self.server.start()
 
-        # Verify signal handlers were set up
-        mock_signal.signal.assert_any_call(mock_signal.SIGTERM, mock_signal.ANY)
-        mock_signal.signal.assert_any_call(mock_signal.SIGINT, mock_signal.ANY)
+        # Verify signal handlers were set up (using actual signal constants)
+        call_args = [call[0][0] for call in mock_signal_func.call_args_list]
+        assert signal_module.SIGTERM in call_args
+        assert signal_module.SIGINT in call_args
 
-    @patch('code_atlas.server.uvicorn')
-    async def test_server_shutdown_on_signal(self, mock_uvicorn) -> None:
+    @pytest.mark.asyncio
+    @patch('uvicorn.Server')
+    @patch('uvicorn.Config')
+    async def test_server_shutdown_on_signal(self, mock_config_class, mock_server_class) -> None:
         """Test graceful shutdown on signal."""
         mock_config = Mock()
-        mock_uvicorn.Config.return_value = mock_config
+        mock_config_class.return_value = mock_config
 
         mock_server = Mock()
-        mock_uvicorn.Server.return_value = mock_server
+        mock_server.serve = AsyncMock()  # serve() is an async method
+        mock_server_class.return_value = mock_server
 
         # Mock signal handler
         def mock_signal_handler(signum, frame):
@@ -235,9 +262,11 @@ class TestMetricsServer:
         with patch('code_atlas.server.signal.signal', side_effect=lambda sig, handler: None):
             await self.server.start()
 
+    @pytest.mark.asyncio
     async def test_async_client(self) -> None:
         """Test async client for server endpoints."""
-        async with AsyncClient(app=self.server.app, base_url="http://test") as async_client:
+        transport = ASGITransport(app=self.server.app)
+        async with AsyncClient(transport=transport, base_url="http://test") as async_client:
             # Test root endpoint
             response = await async_client.get("/")
             assert response.status_code == 200
@@ -369,24 +398,16 @@ class TestServerIntegration:
         settings = AtlasSettings(enable_metrics=True)
         server = MetricsServer(settings)
 
-        # Test that metrics collection starts during lifespan
+        # Test that metrics collection starts/stops during lifespan
         with patch.object(server.metrics, 'start_collection') as mock_start:
             with patch.object(server.metrics, 'stop_collection') as mock_stop:
                 # Simulate lifespan events
-                async with server.app.router.lifespan_context:
-                    pass
+                async with server.app.router.lifespan_context(server.app):
+                    # start_collection should be called on startup
+                    mock_start.assert_called_once()
 
-                # In a real FastAPI app, these would be called automatically
-                # For testing, we verify they exist and can be called
-                mock_start.assert_not_called()  # Not called in this test setup
-                mock_stop.assert_not_called()   # Not called in this test setup
-
-        # Manual test of lifecycle methods
-        server.metrics.start_collection()
-        assert server.metrics._system_metrics_thread is not None
-
-        server.metrics.stop_collection()
-        assert server.metrics._stop_event.is_set()
+                # stop_collection should be called on shutdown
+                mock_stop.assert_called_once()
 
 
 class TestServerErrorHandling:

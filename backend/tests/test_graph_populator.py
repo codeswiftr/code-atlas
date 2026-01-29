@@ -87,10 +87,12 @@ def test_graph_populator_real_connection(
 
     # Test simple query execution
     query = "MERGE (n:Test {id:'test-node', name:'test'})"
+    queries_before = len(populator.executed_queries)
     populator._execute(query)
 
-    # Verify query was executed
-    assert len(populator.executed_queries) == 1
+    # Verify query was executed (should have added 1 more query)
+    assert len(populator.executed_queries) == queries_before + 1
+    assert query in populator.executed_queries
 
     # Query the node back to verify it exists
     result = populator.client.execute_command(
@@ -298,8 +300,8 @@ def test_graph_populator_index_creation_during_initialization(
 
     # Verify critical indexes exist
     index_query_strings = " ".join(index_queries)
-    assert "session_id" in index_query_strings, "Missing session_id index"
-    assert "entity_name" in index_query_strings, "Missing entity_name index"
+    assert ":Session(id)" in index_query_strings, "Missing Session id index"
+    assert ":File(name)" in index_query_strings or ":Concept(name)" in index_query_strings, "Missing entity name index"
 
 
 @pytest.mark.integration

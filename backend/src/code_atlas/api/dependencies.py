@@ -31,8 +31,8 @@ def get_graph_populator(
 ) -> GraphPopulator:
     """Get graph populator instance."""
     return GraphPopulator(
-        graph_name="code_atlas",
-        redis_url="redis://localhost:6379",
+        graph_name=settings.graph_name,
+        redis_url=settings.redis_url,
         dry_run=False,
         create_indexes=settings.create_db_indexes,
     )

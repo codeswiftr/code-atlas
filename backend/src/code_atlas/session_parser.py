@@ -69,14 +69,40 @@ class SessionParser:
             envelope.get("timestamp") or message_payload.get("timestamp")
         )
 
-        text_segments = message_payload.get("content") or []
-        text = "\n".join(
-            segment.get("text", "")
-            for segment in text_segments
-            if isinstance(segment, dict) and segment.get("type") == "text"
-        ).strip()
+        content_segments = message_payload.get("content") or []
+        text_parts: list[str] = []
+        extracted_files: list[str] = []
 
+        for segment in content_segments:
+            if not isinstance(segment, dict):
+                continue
+
+            segment_type = segment.get("type")
+
+            # Extract text from text segments
+            if segment_type == "text":
+                text_parts.append(segment.get("text", ""))
+
+            # Extract file paths from tool_use segments
+            elif segment_type == "tool_use":
+                tool_input = segment.get("input", {})
+                if isinstance(tool_input, dict):
+                    # Common file path keys in Claude Code tools
+                    for key in ("file_path", "path", "filename", "file", "notebook_path"):
+                        file_path = tool_input.get(key)
+                        if file_path and isinstance(file_path, str):
+                            extracted_files.append(file_path)
+                    # Handle pattern/paths in glob/grep tools
+                    paths = tool_input.get("paths", [])
+                    if isinstance(paths, list):
+                        extracted_files.extend(p for p in paths if isinstance(p, str))
+
+        text = "\n".join(text_parts).strip()
+
+        # Combine envelope files with extracted files
         files = envelope.get("files") or message_payload.get("files") or []
+        files = list(set(files + extracted_files))
+
         usage = (
             envelope.get("usage")
             or message_payload.get("usage")

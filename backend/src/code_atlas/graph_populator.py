@@ -40,33 +40,35 @@ class GraphPopulator:
     executed_queries: list[str] = field(init=False, default_factory=list)
     _resolver: object | None = field(init=False, default=None)
 
-    # Predefined indexes for production performance
+    # Predefined indexes for production performance (FalkorDB syntax)
+    # Note: FalkorDB silently ignores duplicate index creation, no IF NOT EXISTS needed
     INDEXES: ClassVar[dict[str, list[str]]] = {
         "Session": [
-            "CREATE INDEX session_id IF NOT EXISTS FOR (s:Session) ON (s.id)",
-            "CREATE INDEX session_project IF NOT EXISTS FOR (s:Session) ON (s.project)",
-            "CREATE INDEX session_modified_at IF NOT EXISTS FOR (s:Session) ON (s.modified_at)",
-            "CREATE INDEX session_size_bytes IF NOT EXISTS FOR (s:Session) ON (s.size_bytes)",
+            "CREATE INDEX ON :Session(id)",
+            "CREATE INDEX ON :Session(project)",
+            "CREATE INDEX ON :Session(modified_at)",
+            "CREATE INDEX ON :Session(size_bytes)",
         ],
         "Entity": [
-            "CREATE INDEX entity_id IF NOT EXISTS FOR (e:File) ON (e.id)",
-            "CREATE INDEX entity_name IF NOT EXISTS FOR (e:File) ON (e.name)",
-            "CREATE INDEX entity_id IF NOT EXISTS FOR (e:Concept) ON (e.id)",
-            "CREATE INDEX entity_name IF NOT EXISTS FOR (e:Concept) ON (e.name)",
-            "CREATE INDEX entity_type IF NOT EXISTS FOR (e:File) ON (e.type)",
-            "CREATE INDEX entity_type IF NOT EXISTS FOR (e:Concept) ON (e.type)",
+            "CREATE INDEX ON :File(id)",
+            "CREATE INDEX ON :File(name)",
+            "CREATE INDEX ON :File(type)",
+            "CREATE INDEX ON :Concept(id)",
+            "CREATE INDEX ON :Concept(name)",
+            "CREATE INDEX ON :Concept(type)",
         ],
         "Insight": [
-            "CREATE INDEX insight_id IF NOT EXISTS FOR (i:Insight) ON (i.id)",
+            "CREATE INDEX ON :Insight(id)",
         ],
         "Relationships": [
-            # Indexes for MENTIONS relationship lookups
-            "CREATE INDEX mentions_source IF NOT EXISTS FOR ()-[r:MENTIONS]->() ON (r.confidence)",
-            "CREATE INDEX mentions_extracted_at IF NOT EXISTS FOR ()-[r:MENTIONS]->() ON (r.extracted_at)",
+            # FalkorDB does not support relationship property indexes
+            # Query optimization relies on node indexes instead
         ],
         "FullText": [
-            # Full-text search indexes for entity names
-            "CREATE FULLTEXT INDEX entity_name_fulltext IF NOT EXISTS FOR (e) ON EACH [e.name]",
+            # FalkorDB full-text search uses CALL procedure syntax
+            # Note: Run only once - FalkorDB will error if index already exists
+            "CALL db.idx.fulltext.createNodeIndex('File', 'name')",
+            "CALL db.idx.fulltext.createNodeIndex('Concept', 'name')",
         ]
     }
 
@@ -490,20 +492,32 @@ class GraphPopulator:
                 continue
 
             for index_query in self.INDEXES[category]:
+                index_identifier = "unknown"
                 try:
-                    # Convert CREATE INDEX to DROP INDEX
-                    if "CREATE INDEX" in index_query:
-                        parts = index_query.split()
-                        if "INDEX" in parts and parts.index("INDEX") + 1 < len(parts):
-                            index_name = parts[parts.index("INDEX") + 1]
-                            drop_query = f"DROP INDEX {index_name} IF EXISTS"
+                    # FalkorDB syntax: CREATE INDEX ON :Label(property)
+                    if "CREATE INDEX ON" in index_query:
+                        # Extract :Label(property) part and use same syntax for drop
+                        # e.g., "CREATE INDEX ON :Session(id)" -> "DROP INDEX ON :Session(id)"
+                        drop_query = index_query.replace("CREATE INDEX ON", "DROP INDEX ON")
+                        index_identifier = index_query.split("ON")[1].strip()
+                        self._execute(drop_query)
+                        logger.debug("Index dropped successfully", category=category, index=index_identifier)
+                    elif "CALL db.idx.fulltext.createNodeIndex" in index_query:
+                        # Full-text indexes: CALL db.idx.fulltext.drop('Label')
+                        # Extract label from createNodeIndex('Label', 'property')
+                        import re
+                        match = re.search(r"createNodeIndex\('(\w+)'", index_query)
+                        if match:
+                            label = match.group(1)
+                            drop_query = f"CALL db.idx.fulltext.drop('{label}')"
+                            index_identifier = f"fulltext:{label}"
                             self._execute(drop_query)
-                            logger.debug("Index dropped successfully", category=category, index=index_name)
+                            logger.debug("Full-text index dropped", category=category, label=label)
                 except redis.RedisError as exc:
                     logger.warning(
                         "Failed to drop index",
                         category=category,
-                        index=index_name if 'index_name' in locals() else "unknown",
+                        index=index_identifier,
                         error=str(exc),
                     )
 
@@ -516,15 +530,17 @@ class GraphPopulator:
 
         try:
             # Try a simple query that should use indexes
+            # Note: In Cypher, LIMIT must come after RETURN
             test_queries = [
-                "MATCH (s:Session) LIMIT 1",
-                "MATCH (f:File) LIMIT 1",
-                "MATCH (c:Concept) LIMIT 1",
-                "MATCH (i:Insight) LIMIT 1"
+                "MATCH (s:Session) RETURN s LIMIT 1",
+                "MATCH (f:File) RETURN f LIMIT 1",
+                "MATCH (c:Concept) RETURN c LIMIT 1",
+                "MATCH (i:Insight) RETURN i LIMIT 1"
             ]
 
             for test_query in test_queries:
                 try:
+                    self.executed_queries.append(test_query)
                     result = self.client.execute_command("GRAPH.QUERY", self.graph_name, test_query)
                     logger.debug("Index verification query successful", query=test_query)
                 except redis.RedisError as exc:

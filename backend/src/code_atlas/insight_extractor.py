@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -611,20 +612,57 @@ class InsightExtractor:
     def _heuristic_extract(self, session: ParsedSession) -> ExtractionResult:
         entities: list[Entity] = []
         insights: list[str] = []
+        seen_files: set[str] = set()
 
+        # Add files from session.referenced_files (from parser)
         for file_path in session.referenced_files:
-            entities.append(
-                Entity(
-                    type="file",
-                    name=file_path,
-                    confidence=1.0,  # High confidence for file paths from session data
-                    metadata={"project": session.metadata.project},
+            if file_path not in seen_files:
+                seen_files.add(file_path)
+                entities.append(
+                    Entity(
+                        type="file",
+                        name=file_path,
+                        confidence=1.0,  # High confidence for file paths from session data
+                        metadata={"project": session.metadata.project},
+                    )
                 )
-            )
+
+        # Extract file paths from message text using regex
+        # Pattern matches absolute paths like /Users/... or /home/... or relative paths with extensions
+        file_path_pattern = re.compile(
+            r'(?:^|[\s"\':,\(\[])(/(?:Users|home|var|etc|opt|tmp)[^\s"\',:;\)\]\n]+\.[a-zA-Z0-9]+)|'
+            r'(?:file_path["\']?\s*:\s*["\']?)([^\s"\',:;\)\]\n]+\.[a-zA-Z0-9]+)'
+        )
+
+        for msg in session.messages:
+            if not msg.text:
+                continue
+            matches = file_path_pattern.findall(msg.text)
+            for match_groups in matches:
+                # match_groups is a tuple of groups, get first non-empty
+                file_path = next((g for g in match_groups if g), None)
+                if file_path and file_path not in seen_files:
+                    # Filter out common non-file patterns
+                    if not any(x in file_path.lower() for x in ['.com/', '.org/', '.io/', 'http']):
+                        seen_files.add(file_path)
+                        entities.append(
+                            Entity(
+                                type="file",
+                                name=file_path,
+                                confidence=0.8,  # Medium-high confidence for regex-extracted paths
+                                metadata={"project": session.metadata.project, "source": "text_extraction"},
+                            )
+                        )
 
         if session.total_tokens:
             insights.append(
                 f"Session {session.metadata.session_id} used {session.total_tokens} tokens."
+            )
+
+        # Add insight about file count
+        if len(entities) > 0:
+            insights.append(
+                f"Session referenced {len(entities)} unique files."
             )
 
         return ExtractionResult(

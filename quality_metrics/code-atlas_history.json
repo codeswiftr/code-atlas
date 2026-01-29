@@ -1,0 +1,23 @@
+[
+  {
+    "timestamp": "2026-01-18T09:29:34.749183+00:00",
+    "quality_score": 65.0,
+    "coverage_percent": 0.0,
+    "complexity_score": 0.0,
+    "security_issues": 0
+  },
+  {
+    "timestamp": "2026-01-18T10:56:34.069054+00:00",
+    "quality_score": 37.0,
+    "coverage_percent": 0.0,
+    "complexity_score": 3.516759776536313,
+    "security_issues": 24
+  },
+  {
+    "timestamp": "2026-01-18T11:00:33.414181+00:00",
+    "quality_score": 37.0,
+    "coverage_percent": 0.0,
+    "complexity_score": 3.516759776536313,
+    "security_issues": 24
+  }
+]

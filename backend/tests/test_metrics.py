@@ -3,12 +3,29 @@
 from __future__ import annotations
 
 import time
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from prometheus_client import REGISTRY
 
 from code_atlas.config import AtlasSettings
 from code_atlas.metrics import AtlasMetrics, MetricsConfig, init_metrics
+
+
+@pytest.fixture(autouse=True)
+def mock_http_server(monkeypatch):
+    """Prevent real HTTP server from starting during tests."""
+    mock_server = MagicMock()
+    monkeypatch.setattr('code_atlas.metrics.start_http_server', mock_server)
+    return mock_server
+
+
+@pytest.fixture(autouse=True)
+def reset_singleton():
+    """Reset AtlasMetrics singleton before and after each test."""
+    AtlasMetrics._instance = None
+    yield
+    AtlasMetrics._instance = None
 
 
 class TestMetricsConfig:
@@ -56,17 +73,21 @@ class TestAtlasMetrics:
 
     def setup_method(self) -> None:
         """Set up test fixtures."""
+        # Reset singleton to prevent state pollution
+        AtlasMetrics._instance = None
         # Clear any existing metrics
         REGISTRY._collector_to_names.clear()
         REGISTRY._names_to_collectors.clear()
 
-        self.config = MetricsConfig(enabled=True, namespace="test_atlas")
+        self.config = MetricsConfig(enabled=True, namespace="test_atlas", collection_interval=1)
         self.metrics = AtlasMetrics(self.config)
 
     def teardown_method(self) -> None:
         """Clean up test fixtures."""
         if self.metrics:
             self.metrics.stop_collection()
+        # Force reset singleton
+        AtlasMetrics._instance = None
 
     def test_singleton_pattern(self) -> None:
         """Test that AtlasMetrics follows singleton pattern."""
@@ -200,6 +221,8 @@ class TestAtlasMetrics:
     @patch('code_atlas.metrics.psutil')
     def test_system_metrics_collection(self, mock_psutil) -> None:
         """Test system metrics collection."""
+        import threading
+
         # Mock psutil values
         mock_memory = Mock()
         mock_memory.available = 1000000000
@@ -219,8 +242,20 @@ class TestAtlasMetrics:
             Mock(mountpoint="/")
         ]
 
-        # Collect metrics
-        self.metrics._collect_system_metrics()
+        # Run _collect_system_metrics in a thread and stop after first iteration
+        def run_collection():
+            self.metrics._collect_system_metrics()
+
+        # Set up stop event to trigger after first sleep
+        original_wait = threading.Event.wait
+
+        def patched_wait(self_event, timeout=None):
+            # Set the stop event after first wait call to exit loop
+            self.metrics._stop_event.set()
+            return True
+
+        with patch.object(threading.Event, 'wait', patched_wait):
+            self.metrics._collect_system_metrics()
 
         # Verify metrics are recorded
         output = self.metrics.get_metrics_text()
@@ -364,21 +399,24 @@ class TestMetricsIntegration:
     def test_metrics_with_graph_populator(self) -> None:
         """Test metrics integration with GraphPopulator."""
         from code_atlas.graph_populator import GraphPopulator
-        from code_atlas.insight_extractor import Entity, ExtractionResult
+        from code_atlas.insight_extractor import Entity, ExtractionResult, Relationship
         from code_atlas.models import ParsedSession
 
-        # Create metrics instance
-        metrics = AtlasMetrics(MetricsConfig(enabled=True))
+        # Create metrics instance with test namespace
+        metrics = AtlasMetrics(MetricsConfig(enabled=True, namespace="test_atlas"))
 
         # Create populator with metrics
         populator = GraphPopulator(dry_run=True, metrics=metrics)
 
-        # Create test data
+        # Create test data - properly set up nested mock objects
+        mock_metadata = Mock()
+        mock_metadata.session_id = "test_session"
+        mock_metadata.project = "test_project"
+        mock_metadata.size_bytes = 1024
+        mock_metadata.modified_at = Mock()
+
         mock_session = Mock(spec=ParsedSession)
-        mock_session.metadata.session_id = "test_session"
-        mock_session.metadata.project = "test_project"
-        mock_session.metadata.size_bytes = 1024
-        mock_session.metadata.modified_at = Mock()
+        mock_session.metadata = mock_metadata
 
         extraction = ExtractionResult(
             entities=[
@@ -386,7 +424,7 @@ class TestMetricsIntegration:
                 Entity(type="concept", name="algorithms")
             ],
             relationships=[
-                Mock(type="RELATED_TO", source="test.py", target="algorithms")
+                Relationship(type="RELATED_TO", source="test.py", target="algorithms")
             ],
             insights=["Test insight"]
         )
@@ -404,16 +442,19 @@ class TestMetricsIntegration:
         from code_atlas.insight_extractor import InsightExtractor
         from code_atlas.models import ParsedSession
 
-        # Create metrics instance
-        metrics = AtlasMetrics(MetricsConfig(enabled=True))
+        # Create metrics instance with test namespace
+        metrics = AtlasMetrics(MetricsConfig(enabled=True, namespace="test_atlas"))
 
         # Create extractor with metrics
         extractor = InsightExtractor(use_llm=False)
         extractor.metrics = metrics
 
-        # Create test session
+        # Create test session - properly set up nested mock objects
+        mock_metadata = Mock()
+        mock_metadata.session_id = "test_session"
+
         mock_session = Mock(spec=ParsedSession)
-        mock_session.metadata.session_id = "test_session"
+        mock_session.metadata = mock_metadata
         mock_session.messages = []
         mock_session.referenced_files = ["test.py"]
         mock_session.total_tokens = 1000

@@ -203,12 +203,14 @@ def test_pipeline_end_to_end_dry_run(sample_session_files: Path) -> None:
 
 @pytest.fixture
 def falkordb_available() -> bool:
-    """Check if FalkorDB is available at localhost:6379."""
+    """Check if FalkorDB (not just Redis) is available at localhost:6379."""
     try:
         client = redis.Redis(host="localhost", port=6379, decode_responses=True)
         client.ping()
+        # Verify FalkorDB-specific GRAPH.QUERY support
+        client.execute_command("GRAPH.QUERY", "test_availability_check", "RETURN 1")
         return True
-    except (redis.ConnectionError, redis.TimeoutError):
+    except (redis.ConnectionError, redis.TimeoutError, redis.ResponseError):
         return False
 
 

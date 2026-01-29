@@ -171,6 +171,28 @@ class AtlasSettings(BaseSettings):
         description="Rate limit for admin API keys (requests per minute).",
         alias="CODE_ATLAS_ADMIN_RATE_LIMIT",
     )
+    # Graph database settings
+    redis_url: str = Field(
+        default="redis://localhost:6379",
+        description="Redis/FalkorDB connection URL.",
+        alias="CODE_ATLAS_REDIS_URL",
+    )
+    graph_name: str = Field(
+        default="code_atlas",
+        description="Name of the graph in FalkorDB.",
+        alias="CODE_ATLAS_GRAPH_NAME",
+    )
+    # PostHog Analytics
+    posthog_api_key: str | None = Field(
+        default=None,
+        description="PostHog API key for product analytics.",
+        alias="CODE_ATLAS_POSTHOG_API_KEY",
+    )
+    posthog_host: str = Field(
+        default="https://eu.posthog.com",
+        description="PostHog host URL.",
+        alias="CODE_ATLAS_POSTHOG_HOST",
+    )
 
     @property
     def session_root(self) -> Path:

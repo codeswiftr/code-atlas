@@ -8,10 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 import psutil
 
+from forge_shared.middleware import RequestIDMiddleware, SecurityMiddleware
+from forge_shared.utm import UTMMiddleware, get_utm_params
+
 from ..config import AtlasSettings
 from ..logging_config import get_logger
 from ..metrics import init_metrics
-from .middleware import RateLimitMiddleware, SecurityHeadersMiddleware
+from ..posthog_analytics import PostHogAnalytics
+from .middleware import RateLimitMiddleware
 from .v1 import admin_router, graph_router, sessions_router, insights_router
 from ..websocket import websocket_job_updates
 
@@ -24,6 +28,8 @@ class CodeAtlasAPI:
     def __init__(self, settings: AtlasSettings | None = None) -> None:
         self.settings = settings or AtlasSettings()
         self.metrics = init_metrics(self.settings) if self.settings.enable_metrics else None
+        # Initialize PostHog analytics
+        PostHogAnalytics.initialize(self.settings)
         self.app = self._create_app()
 
     def _create_app(self) -> FastAPI:
@@ -127,14 +133,18 @@ X-API-Key: your-api-key-here
             allow_headers=["*"],
         )
 
+        # UTM middleware for attribution tracking
+        app.add_middleware(UTMMiddleware)
+
+        # Request ID middleware for request tracing (forge-shared)
+        app.add_middleware(RequestIDMiddleware)
+
         # Add security headers middleware
         # In production, enable strict security headers
         # In development, disable HSTS to avoid issues with localhost
-        security_headers_enabled = not is_development
         app.add_middleware(
-            SecurityHeadersMiddleware,
-            enabled=security_headers_enabled,
-            # Relaxed CSP in development to allow hot reload
+            SecurityMiddleware,
+            hsts_enabled=not is_development,
             csp_policy=(
                 "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'"
                 if is_development

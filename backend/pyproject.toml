@@ -26,7 +26,12 @@ dependencies = [
     "sentence-transformers>=5.2.0",
     "mcp>=1.25.0",
     "alembic>=1.17.2",
+    "forge-shared>=0.1.0",
+    "posthog>=3.0.0",
 ]
+
+[tool.uv.sources]
+forge-shared = { path = "../../../forge-shared", editable = true }
 
 [project.scripts]
 code-atlas = "code_atlas.cli:app"
@@ -38,6 +43,7 @@ build-backend = "uv_build"
 [tool.pytest.ini_options]
 addopts = "-q --maxfail=1"
 testpaths = ["tests"]
+asyncio_mode = "auto"
 markers = [
     "integration: marks tests that require external services (FalkorDB, Redis, etc.)",
 ]
@@ -53,6 +59,7 @@ select = ["E", "F", "I", "B", "UP"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.1",
+    "pytest-asyncio>=0.25.0",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.4",
 ]

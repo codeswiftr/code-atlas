@@ -23,23 +23,20 @@ def test_graph_populator_indexes_defined() -> None:
     assert "Relationships" in indexes
     assert "FullText" in indexes
 
-    # Check critical Session indexes
-    session_indexes = [idx for idx in indexes["Session"] if "CREATE INDEX" in idx]
-    session_index_names = [idx.split()[2] for idx in session_indexes if len(idx.split()) > 2]
-    assert "session_id" in session_index_names
-    assert "session_project" in session_index_names
-    assert "session_modified_at" in session_index_names
+    # Check critical Session indexes (FalkorDB syntax: CREATE INDEX ON :Label(property))
+    session_indexes = " ".join(indexes["Session"])
+    assert ":Session(id)" in session_indexes, "Missing Session id index"
+    assert ":Session(project)" in session_indexes, "Missing Session project index"
+    assert ":Session(modified_at)" in session_indexes, "Missing Session modified_at index"
 
     # Check Entity indexes for File and Concept
-    entity_indexes = indexes["Entity"]
-    file_name_index = any("entity_name" in idx and "File" in idx for idx in entity_indexes)
-    concept_name_index = any("entity_name" in idx and "Concept" in idx for idx in entity_indexes)
-    assert file_name_index, "Missing entity name index for File type"
-    assert concept_name_index, "Missing entity name index for Concept type"
+    entity_indexes = " ".join(indexes["Entity"])
+    assert ":File(name)" in entity_indexes, "Missing entity name index for File type"
+    assert ":Concept(name)" in entity_indexes, "Missing entity name index for Concept type"
 
-    # Check Full-text index exists
-    fulltext_indexes = [idx for idx in indexes["FullText"] if "CREATE FULLTEXT INDEX" in idx]
-    assert len(fulltext_indexes) > 0, "Missing full-text index for entity names"
+    # Check Full-text index exists (FalkorDB uses CALL procedure syntax)
+    fulltext_indexes = " ".join(indexes["FullText"])
+    assert "fulltext.createNodeIndex" in fulltext_indexes, "Missing full-text index for entity names"
 
 
 def test_graph_populator_list_indexes() -> None:
@@ -58,7 +55,8 @@ def test_graph_populator_list_indexes() -> None:
         assert isinstance(index_list, list)
         for index_query in index_list:
             assert isinstance(index_query, str)
-            assert "CREATE" in index_query or "FULLTEXT" in index_query
+            # FalkorDB uses CREATE INDEX or CALL db.idx.fulltext
+            assert "CREATE INDEX" in index_query or "fulltext" in index_query
 
 
 def test_graph_populator_dry_run_no_index_creation() -> None:

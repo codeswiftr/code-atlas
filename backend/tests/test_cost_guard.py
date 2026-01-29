@@ -95,6 +95,7 @@ def test_extractor_respects_session_cost_limit() -> None:
     # Create extractor with mocked client (use_llm=True, provider=anthropic for LLM path)
     extractor = InsightExtractor(use_llm=True, provider="anthropic")
     extractor.client = Mock()  # Mock client to enable LLM path
+    extractor.provider = "anthropic"  # Reset after __post_init__ clears it (no API key in test)
     extractor.cost_guard = cost_guard
 
     session = make_session(message_count=10)  # Large session
@@ -118,6 +119,7 @@ def test_extractor_records_cost_after_extraction() -> None:
 
     extractor = InsightExtractor(use_llm=True, provider="anthropic")
     extractor.client = Mock()
+    extractor.provider = "anthropic"  # Reset after __post_init__ clears it (no API key in test)
     extractor.cost_guard = cost_guard
 
     session = make_session()
@@ -170,6 +172,7 @@ def test_pipeline_initializes_cost_guard() -> None:
     # Create extractor with LLM enabled (required for cost guard initialization)
     extractor = InsightExtractor(use_llm=True, provider="anthropic")
     extractor.client = Mock()  # Mock client
+    extractor.provider = "anthropic"  # Reset after __post_init__ clears it (no API key in test)
 
     # Create minimal pipeline
     discovery = Mock(spec=SessionDiscovery)

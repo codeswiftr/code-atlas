@@ -4,7 +4,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from code_atlas.api.middleware import SecurityHeadersMiddleware
+from forge_shared.middleware import SecurityMiddleware
 
 
 def create_test_app(middleware_kwargs: dict | None = None) -> FastAPI:
@@ -19,7 +19,7 @@ def create_test_app(middleware_kwargs: dict | None = None) -> FastAPI:
     async def api_endpoint():
         return {"entities": []}
 
-    app.add_middleware(SecurityHeadersMiddleware, **(middleware_kwargs or {}))
+    app.add_middleware(SecurityMiddleware, **(middleware_kwargs or {}))
     return app
 
 
@@ -38,7 +38,7 @@ class TestSecurityHeaders:
 
     def test_response_includes_hsts_with_subdomains(self):
         """HSTS header includes subDomains directive."""
-        app = create_test_app({"include_subdomains": True})
+        app = create_test_app({"hsts_include_subdomains": True})
         client = TestClient(app)
 
         response = client.get("/test")
@@ -56,14 +56,14 @@ class TestSecurityHeaders:
         assert "default-src" in response.headers["Content-Security-Policy"]
 
     def test_response_includes_frame_options(self):
-        """X-Frame-Options DENY present."""
+        """X-Frame-Options SAMEORIGIN present (forge-shared default)."""
         app = create_test_app()
         client = TestClient(app)
 
         response = client.get("/test")
 
         assert "X-Frame-Options" in response.headers
-        assert response.headers["X-Frame-Options"] == "DENY"
+        assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
 
     def test_response_includes_content_type_options(self):
         """X-Content-Type-Options nosniff present."""
@@ -138,28 +138,41 @@ class TestSecurityHeadersConfiguration:
 
     def test_security_headers_configurable_frame_options(self):
         """Custom frame options applied."""
-        app = create_test_app({"frame_options": "SAMEORIGIN"})
+        app = create_test_app({"x_frame_options": "DENY"})
         client = TestClient(app)
 
         response = client.get("/test")
 
-        assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+        assert response.headers["X-Frame-Options"] == "DENY"
 
-    def test_security_headers_disabled(self):
-        """Headers not added when disabled."""
-        app = create_test_app({"enabled": False})
+    def test_security_headers_hsts_disabled(self):
+        """HSTS headers not added when hsts_enabled=False."""
+        app = create_test_app({"hsts_enabled": False})
         client = TestClient(app)
 
         response = client.get("/test")
 
-        # Security headers should NOT be present when disabled
+        # HSTS should NOT be present when disabled
         assert "Strict-Transport-Security" not in response.headers
+        # Other security headers should still be present
+        assert "X-Frame-Options" in response.headers
+        assert "X-Content-Type-Options" in response.headers
+
+    def test_security_headers_csp_disabled(self):
+        """CSP headers not added when csp_enabled=False."""
+        app = create_test_app({"csp_enabled": False})
+        client = TestClient(app)
+
+        response = client.get("/test")
+
+        # CSP should NOT be present when disabled
         assert "Content-Security-Policy" not in response.headers
-        assert "X-Frame-Options" not in response.headers
+        # Other security headers should still be present
+        assert "X-Frame-Options" in response.headers
 
     def test_security_headers_without_subdomains(self):
         """HSTS without includeSubDomains when configured."""
-        app = create_test_app({"include_subdomains": False})
+        app = create_test_app({"hsts_include_subdomains": False})
         client = TestClient(app)
 
         response = client.get("/test")

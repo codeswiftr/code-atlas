@@ -7,7 +7,8 @@
   "deploy": {
     "startCommand": "python -m code_atlas.cli serve --host 0.0.0.0 --port $PORT",
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 30,
+    "healthcheckTimeout": 300,
+    "startPeriod": 60,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }
