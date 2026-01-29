@@ -17,6 +17,7 @@ from .logging_config import get_logger
 from .metrics import AtlasMetrics, init_metrics
 from .session_discovery import SessionDiscovery
 from .session_parser import SessionParser
+from .simple_history import SimpleHistory
 
 console = Console()
 logger = get_logger(__name__)
@@ -53,9 +54,10 @@ class PipelineRunner:
     config: PipelineConfig = field(default_factory=PipelineConfig)
     settings: AtlasSettings | None = None
     metrics: AtlasMetrics | None = field(init=False, default=None)
+    history: SimpleHistory | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
-        """Initialize cost guard and metrics if settings provided."""
+        """Initialize cost guard, metrics, and history tracking if settings provided."""
         if self.settings:
             # Initialize cost guard if extractor uses LLM (any provider)
             if self.extractor.provider:
@@ -68,6 +70,11 @@ class PipelineRunner:
             # Initialize metrics if enabled
             if self.settings.enable_metrics:
                 self.metrics = init_metrics(self.settings)
+
+        # Always initialize history tracking
+        self.history = SimpleHistory(
+            history_file=Path.cwd() / ".forge" / "state" / "code_atlas_history.jsonl"
+        )
 
     def run(self, limit: int | None = None) -> PipelineStats:
         stats = PipelineStats()
@@ -138,6 +145,21 @@ class PipelineRunner:
                     if self.metrics:
                         self.metrics.record_session_processed(meta.project, "success")
 
+                    # Record success in history
+                    if self.history:
+                        self.history.record(
+                            domain="code-atlas",
+                            project=meta.project,
+                            action="extract",
+                            success=True,
+                            context={
+                                "session_id": meta.session_id,
+                                "entities": len(extraction.entities),
+                                "relationships": len(extraction.relationships),
+                                "cost_usd": extraction.estimated_cost_usd,
+                            }
+                        )
+
                     logger.info(
                         "Session processed successfully",
                         session_id=meta.session_id,
@@ -178,6 +200,20 @@ class PipelineRunner:
                         # Record failure metrics
                         if self.metrics:
                             self.metrics.record_session_processed(meta.project, "failed")
+
+                        # Record failure in history
+                        if self.history:
+                            self.history.record(
+                                domain="code-atlas",
+                                project=meta.project,
+                                action="extract",
+                                success=False,
+                                context={
+                                    "session_id": meta.session_id,
+                                    "error": str(exc)[:200],  # Truncate long errors
+                                    "error_type": type(exc).__name__,
+                                }
+                            )
 
                         logger.error(
                             "Session processing failed after max retries, quarantining",
@@ -305,6 +341,21 @@ class PipelineRunner:
             if not dry_run:
                 self.populator.upsert(parsed, extraction)
 
+            # Record success in history
+            if self.history and not dry_run:
+                self.history.record(
+                    domain="code-atlas",
+                    project=meta.project,
+                    action="extract",
+                    success=True,
+                    context={
+                        "session_id": meta.session_id,
+                        "entities": len(extraction.entities),
+                        "relationships": len(extraction.relationships),
+                        "extraction_method": "llm" if use_llm else "heuristics",
+                    }
+                )
+
             # Return results
             return {
                 "success": True,
@@ -323,6 +374,26 @@ class PipelineRunner:
                 error=str(exc),
                 error_type=type(exc).__name__,
             )
+
+            # Record failure in history
+            if self.history:
+                # Try to get project from path if meta doesn't exist
+                try:
+                    project = meta.project if 'meta' in locals() else session_path.parent.name
+                except Exception:
+                    project = "unknown"
+
+                self.history.record(
+                    domain="code-atlas",
+                    project=project,
+                    action="extract",
+                    success=False,
+                    context={
+                        "session_path": str(session_path),
+                        "error": str(exc)[:200],
+                        "error_type": type(exc).__name__,
+                    }
+                )
 
             return {
                 "success": False,
