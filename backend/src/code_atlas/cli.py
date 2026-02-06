@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,6 @@ from rich.table import Table
 
 from .config import AtlasSettings, SessionFilter
 from .graph_populator import GraphPopulator
-from .hybrid_search import HybridSearch
 from .insight_extractor import InsightExtractor
 from .logging_config import configure_logging
 from .metrics import init_metrics
@@ -35,6 +35,9 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+# Version from pyproject.toml
+VERSION = "0.1.0"
 
 
 def load_settings(config_path: Path | None = None) -> AtlasSettings:
@@ -57,37 +60,61 @@ def load_settings(config_path: Path | None = None) -> AtlasSettings:
 
 
 def output_json(data: dict[str, Any]) -> None:
-    """Output data as JSON for agent parsing."""
+    """Output data as JSON for agent parsing using FORGE standard schema."""
     console.print_json(json.dumps(data, default=str))
 
 
-def output_success(operation: str, data: dict[str, Any], json_mode: bool = False) -> None:
-    """Output success result in appropriate format."""
+def output_success(result: dict[str, Any], start_time: float, json_mode: bool = False) -> None:
+    """Output success result in FORGE standard format.
+
+    Args:
+        result: Command-specific result data
+        start_time: Start time from time.time()
+        json_mode: Whether to output JSON or human-readable format
+    """
     if json_mode:
-        output_json({"success": True, "operation": operation, **data})
+        duration_ms = int((time.time() - start_time) * 1000)
+        response = {
+            "success": True,
+            "result": result,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "duration_ms": duration_ms,
+            "metadata": {"version": VERSION},
+        }
+        output_json(response)
     else:
-        console.print(f"[green]✓[/green] {operation} completed successfully")
+        console.print("[green]✓[/green] Command completed successfully")
 
 
 def output_error(
-    operation: str, error_code: str, message: str, details: dict | None = None, json_mode: bool = False
+    error_code: str, message: str, start_time: float | None = None, json_mode: bool = False
 ) -> None:
-    """Output error in appropriate format."""
+    """Output error in FORGE standard format.
+
+    Args:
+        error_code: Machine-readable error code
+        message: Human-readable error message
+        start_time: Optional start time for duration tracking
+        json_mode: Whether to output JSON or human-readable format
+    """
     if json_mode:
-        error_data = {
+        response = {
             "success": False,
-            "operation": operation,
-            "error": {"code": error_code, "message": message, "details": details or {}},
+            "error": {"code": error_code, "message": message},
+            "timestamp": datetime.now(UTC).isoformat(),
         }
-        output_json(error_data)
+        if start_time:
+            response["duration_ms"] = int((time.time() - start_time) * 1000)
+        output_json(response)
     else:
-        console.print(f"[red]✗[/red] {operation} failed: {message}")
+        console.print(f"[red]✗[/red] {message}")
     raise typer.Exit(code=1)
 
 
 # =============================================================================
 # DISCOVER COMMAND
 # =============================================================================
+
 
 @app.command("discover")
 def discover_sessions(
@@ -102,27 +129,31 @@ def discover_sessions(
         None, "--exclude-project", "-e", help="Project names to exclude."
     ),
     limit: int | None = typer.Option(None, help="Maximum number of sessions to list."),
-    json_output: bool = typer.Option(
-        False, "--json", help="Output JSON for agent parsing."
-    ),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON for agent parsing."),
 ) -> None:
     """List discovered sessions."""
     settings = load_settings(config)
-    
+
     try:
         discovery = SessionDiscovery(root=root or settings.claude_root, settings=settings)
     except FileNotFoundError as e:
-        output_error("discover", "ROOT_NOT_FOUND", str(e), {"root": str(root or settings.claude_root)}, json_output)
+        output_error(
+            "discover",
+            "ROOT_NOT_FOUND",
+            str(e),
+            {"root": str(root or settings.claude_root)},
+            json_output,
+        )
         return
-    
+
     filters = SessionFilter(
         include_projects=set(include_project or []),
         exclude_projects=set(exclude_project or []),
-        limit=limit
+        limit=limit,
     )
 
     rows = discovery.discover(filters=filters)
-    
+
     if json_output:
         sessions_data = [
             {
@@ -134,12 +165,14 @@ def discover_sessions(
             }
             for meta in rows
         ]
-        output_json({
-            "success": True,
-            "operation": "discover",
-            "count": len(sessions_data),
-            "sessions": sessions_data,
-        })
+        output_json(
+            {
+                "success": True,
+                "operation": "discover",
+                "count": len(sessions_data),
+                "sessions": sessions_data,
+            }
+        )
     else:
         table = Table("Session ID", "Project", "Modified", "Size (KB)", title="Discovered Sessions")
         for meta in rows:
@@ -156,6 +189,7 @@ def discover_sessions(
 # INDEX COMMAND (alias for run)
 # =============================================================================
 
+
 @app.command("index")
 def index_sessions(
     config: Path | None = typer.Option(
@@ -167,43 +201,53 @@ def index_sessions(
         False, "--use-llm/--no-use-llm", help="Use LLM for extraction (Anthropic or OpenRouter)."
     ),
     provider: str | None = typer.Option(
-        None, "--provider", help="LLM provider: 'anthropic' or 'openrouter'. Defaults to config/env."
+        None,
+        "--provider",
+        help="LLM provider: 'anthropic' or 'openrouter'. Defaults to config/env.",
     ),
     graph_url: str | None = typer.Option(
-        None, "--graph-url", "-g",
+        None,
+        "--graph-url",
+        "-g",
         help="Redis/FalkorDB URL. Defaults to redis://localhost:6379.",
     ),
     dry_run: bool = typer.Option(
-        False, "--dry-run/--no-dry-run",
+        False,
+        "--dry-run/--no-dry-run",
         help="When true, do not execute GRAPH.QUERY commands (just log).",
     ),
-    json_output: bool = typer.Option(
-        False, "--json", help="Output JSON for agent parsing."
-    ),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON for agent parsing."),
 ) -> None:
     """Index Claude Code sessions into the knowledge graph.
-    
+
     Alias for 'run' command - processes sessions and populates the graph.
     """
     settings = load_settings(config)
-    
+
     try:
         discovery = SessionDiscovery(root=root or settings.claude_root, settings=settings)
     except FileNotFoundError as e:
-        output_error("index", "ROOT_NOT_FOUND", str(e), {"root": str(root or settings.claude_root)}, json_output)
+        output_error(
+            "index",
+            "ROOT_NOT_FOUND",
+            str(e),
+            {"root": str(root or settings.claude_root)},
+            json_output,
+        )
         return
-    
+
     # Determine provider: CLI flag > config > env > default
     llm_provider = provider or settings.llm_provider
     if llm_provider and llm_provider not in ("anthropic", "openrouter"):
         output_error(
-            "index", "INVALID_PROVIDER", 
+            "index",
+            "INVALID_PROVIDER",
             f"Invalid provider '{llm_provider}'. Must be 'anthropic' or 'openrouter'.",
             {"valid": ["anthropic", "openrouter"]},
-            json_output
+            json_output,
         )
         return
-    
+
     extractor = InsightExtractor(
         use_llm=use_llm,
         provider=llm_provider if llm_provider else None,
@@ -221,48 +265,55 @@ def index_sessions(
         create_indexes=settings.create_db_indexes,
         index_timeout=settings.db_index_creation_timeout,
         verify_indexes_after_creation=settings.verify_indexes,
-        metrics=metrics
+        metrics=metrics,
     )
 
     # Pass metrics to extractor and populator
     extractor.metrics = metrics
 
-    runner = PipelineRunner(
-        discovery, extractor, populator, settings=settings
-    )
+    runner = PipelineRunner(discovery, extractor, populator, settings=settings)
 
     stats = runner.run(limit=limit)
 
     if stats.sessions_processed == 0:
         if json_output:
-            output_json({"success": True, "operation": "index", "warning": "No sessions processed", "stats": {}})
+            output_json(
+                {
+                    "success": True,
+                    "operation": "index",
+                    "warning": "No sessions processed",
+                    "stats": {},
+                }
+            )
         else:
             console.print("[yellow]No sessions processed. Check filters/root path.[/]")
         raise typer.Exit(code=0)
 
     if json_output:
-        output_json({
-            "success": True,
-            "operation": "index",
-            "stats": {
-                "sessions_processed": stats.sessions_processed,
-                "messages_parsed": stats.messages_parsed,
-                "total_tokens": stats.total_tokens,
-                "entities_created": stats.entities_created,
-                "relationships_created": stats.relationships_created,
-                "insights_logged": stats.insights_logged,
-                "estimated_cost_usd": round(stats.estimated_cost_usd, 4),
-                "errors_count": len(stats.errors),
-                "retries_attempted": stats.retries_attempted,
-                "sessions_quarantined": stats.sessions_quarantined,
-            },
-            "dry_run": dry_run,
-        })
+        output_json(
+            {
+                "success": True,
+                "operation": "index",
+                "stats": {
+                    "sessions_processed": stats.sessions_processed,
+                    "messages_parsed": stats.messages_parsed,
+                    "total_tokens": stats.total_tokens,
+                    "entities_created": stats.entities_created,
+                    "relationships_created": stats.relationships_created,
+                    "insights_logged": stats.insights_logged,
+                    "estimated_cost_usd": round(stats.estimated_cost_usd, 4),
+                    "errors_count": len(stats.errors),
+                    "retries_attempted": stats.retries_attempted,
+                    "sessions_quarantined": stats.sessions_quarantined,
+                },
+                "dry_run": dry_run,
+            }
+        )
     else:
         table = Table(title="Indexing Results")
         table.add_column("Metric", style="cyan")
         table.add_column("Value", style="green")
-        
+
         table.add_row("Sessions Processed", str(stats.sessions_processed))
         table.add_row("Messages Parsed", str(stats.messages_parsed))
         table.add_row("Total Tokens", str(stats.total_tokens))
@@ -270,12 +321,12 @@ def index_sessions(
         table.add_row("Relationships Created", str(stats.relationships_created))
         table.add_row("Insights Logged", str(stats.insights_logged))
         table.add_row("Est. Cost (USD)", f"${stats.estimated_cost_usd:.4f}")
-        
+
         if stats.errors:
             table.add_row("Errors", f"[red]{len(stats.errors)}[/red]")
         if stats.sessions_quarantined:
             table.add_row("Quarantined", f"[yellow]{stats.sessions_quarantined}[/yellow]")
-        
+
         console.print(table)
 
         if dry_run:
@@ -288,12 +339,15 @@ def index_sessions(
 
     # Show metrics status if enabled
     if settings.enable_metrics and not json_output:
-        console.print(f"\n[green]✅ Metrics enabled and available at http://{settings.metrics_host}:{settings.metrics_port}{settings.metrics_path}[/]")
+        console.print(
+            f"\n[green]✅ Metrics enabled and available at http://{settings.metrics_host}:{settings.metrics_port}{settings.metrics_path}[/]"
+        )
 
 
 # =============================================================================
 # RUN COMMAND (legacy - now an alias for index)
 # =============================================================================
+
 
 @app.command("run")
 def run_pipeline(
@@ -306,19 +360,22 @@ def run_pipeline(
         False, "--use-llm/--no-use-llm", help="Use LLM for extraction (Anthropic or OpenRouter)."
     ),
     provider: str | None = typer.Option(
-        None, "--provider", help="LLM provider: 'anthropic' or 'openrouter'. Defaults to config/env."
+        None,
+        "--provider",
+        help="LLM provider: 'anthropic' or 'openrouter'. Defaults to config/env.",
     ),
     graph_url: str | None = typer.Option(
-        None, "--graph-url", "-g",
+        None,
+        "--graph-url",
+        "-g",
         help="Redis/FalkorDB URL. Defaults to redis://localhost:6379.",
     ),
     dry_run: bool = typer.Option(
-        True, "--dry-run/--no-dry-run",
+        True,
+        "--dry-run/--no-dry-run",
         help="When true, do not execute GRAPH.QUERY commands (just log).",
     ),
-    json_output: bool = typer.Option(
-        False, "--json", help="Output JSON for agent parsing."
-    ),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON for agent parsing."),
 ) -> None:
     """Run the Code Atlas pipeline to process sessions (legacy, use 'index')."""
     # Delegate to index command
@@ -338,15 +395,14 @@ def run_pipeline(
 # QUERY COMMAND
 # =============================================================================
 
+
 @app.command("query")
 def query_graph(
     question: str = typer.Argument(..., help="Question to ask the knowledge graph"),
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
-    graph_url: str | None = typer.Option(
-        None, "--graph-url", "-g", help="Redis/FalkorDB URL."
-    ),
+    graph_url: str | None = typer.Option(None, "--graph-url", "-g", help="Redis/FalkorDB URL."),
     graph_name: str | None = typer.Option(
         None, "--graph-name", "-n", help="Graph name in FalkorDB."
     ),
@@ -359,12 +415,10 @@ def query_graph(
     no_sources: bool = typer.Option(
         False, "--no-sources", help="Omit source citations from output"
     ),
-    json_output: bool = typer.Option(
-        False, "--json", help="Output JSON for agent parsing"
-    ),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON for agent parsing"),
 ) -> None:
     """Query the knowledge graph with natural language.
-    
+
     Examples:
         code-atlas query "How do I implement OAuth?"
         code-atlas query "What files were modified?" --entity-type File
@@ -379,10 +433,11 @@ def query_graph(
         redis_client.ping()
     except (redis.ConnectionError, redis.TimeoutError) as e:
         output_error(
-            "query", "CONNECTION_ERROR",
+            "query",
+            "CONNECTION_ERROR",
             f"Failed to connect to FalkorDB at {redis_url}",
             {"error": str(e)},
-            json_output
+            json_output,
         )
         return
 
@@ -394,7 +449,7 @@ def query_graph(
             dry_run=False,
         )
         vector_store = VectorStore(redis_client=redis_client)
-        
+
         # Create RAG service
         rag = create_rag_service(
             graph_populator=populator,
@@ -409,16 +464,18 @@ def query_graph(
         )
 
         if json_output:
-            output_json({
-                "success": True,
-                "operation": "query",
-                "question": question,
-                "answer": result["answer"],
-                "confidence": result["confidence"],
-                "sources": result.get("sources", []),
-                "context_entities": result.get("context_entities", []),
-                "search_results_count": result.get("search_results_count", 0),
-            })
+            output_json(
+                {
+                    "success": True,
+                    "operation": "query",
+                    "question": question,
+                    "answer": result["answer"],
+                    "confidence": result["confidence"],
+                    "sources": result.get("sources", []),
+                    "context_entities": result.get("context_entities", []),
+                    "search_results_count": result.get("search_results_count", 0),
+                }
+            )
         else:
             # Display answer in panel
             answer_panel = Panel(
@@ -444,6 +501,7 @@ def query_graph(
 # EXPORT COMMAND
 # =============================================================================
 
+
 @app.command("export")
 def export_data(
     output: Path = typer.Option(
@@ -455,9 +513,7 @@ def export_data(
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
-    graph_url: str | None = typer.Option(
-        None, "--graph-url", "-g", help="Redis/FalkorDB URL"
-    ),
+    graph_url: str | None = typer.Option(None, "--graph-url", "-g", help="Redis/FalkorDB URL"),
     graph_name: str | None = typer.Option(
         None, "--graph-name", "-n", help="Graph name in FalkorDB"
     ),
@@ -472,12 +528,12 @@ def export_data(
     ),
 ) -> None:
     """Export knowledge graph data to various formats.
-    
+
     Formats:
         json    - JSON format with entities and relationships
         cypher  - Cypher CREATE statements for Neo4j/FalkorDB
         graphml - GraphML XML format for visualization tools
-    
+
     Examples:
         code-atlas export --output backup.json
         code-atlas export --format cypher --output import.cypher
@@ -491,10 +547,11 @@ def export_data(
     valid_formats = ["json", "cypher", "graphml"]
     if format not in valid_formats:
         output_error(
-            "export", "INVALID_FORMAT",
+            "export",
+            "INVALID_FORMAT",
             f"Invalid format: {format}",
             {"valid": valid_formats},
-            json_output
+            json_output,
         )
         return
 
@@ -503,10 +560,11 @@ def export_data(
         redis_client.ping()
     except (redis.ConnectionError, redis.TimeoutError) as e:
         output_error(
-            "export", "CONNECTION_ERROR",
+            "export",
+            "CONNECTION_ERROR",
             f"Failed to connect to FalkorDB at {redis_url}",
             {"error": str(e)},
-            json_output
+            json_output,
         )
         return
 
@@ -531,11 +589,13 @@ def export_data(
             RETURN labels(e) as types, e
             {f"LIMIT {limit}" if limit else ""}
         """
-        
+
         try:
             entity_results = populator.execute_query(entity_query)
         except Exception as e:
-            output_error("export", "QUERY_FAILED", f"Failed to query entities: {e}", {}, json_output)
+            output_error(
+                "export", "QUERY_FAILED", f"Failed to query entities: {e}", {}, json_output
+            )
             return
 
         # Query for relationships
@@ -547,7 +607,7 @@ def export_data(
                    b.id as to_id, labels(b) as to_labels
             {f"LIMIT {limit}" if limit else ""}
         """
-        
+
         try:
             rel_results = populator.execute_query(rel_query)
         except Exception:
@@ -574,9 +634,13 @@ def export_data(
                 "relationships": [
                     {
                         "from": row.get("from_id"),
-                        "from_type": row.get("from_labels", ["Unknown"])[0] if row.get("from_labels") else "Unknown",
+                        "from_type": row.get("from_labels", ["Unknown"])[0]
+                        if row.get("from_labels")
+                        else "Unknown",
                         "to": row.get("to_id"),
-                        "to_type": row.get("to_labels", ["Unknown"])[0] if row.get("to_labels") else "Unknown",
+                        "to_type": row.get("to_labels", ["Unknown"])[0]
+                        if row.get("to_labels")
+                        else "Unknown",
                         "type": row.get("rel_type"),
                         "properties": dict(row.get("rel_props", {})),
                     }
@@ -587,31 +651,35 @@ def export_data(
 
         elif format == "cypher":
             lines = ["// Code Atlas Export", f"// Generated: {datetime.now(UTC).isoformat()}", ""]
-            
+
             # Generate CREATE statements for entities
             for row in entity_results:
                 node = row.get("e", {})
                 labels = row.get("types", ["Entity"])
                 label_str = ":".join(labels)
                 node_id = node.get("id", "unknown")
-                
+
                 props = {k: v for k, v in node.items() if k != "id"}
                 prop_str = ", ".join(f"{k}: {json.dumps(v)}" for k, v in props.items())
-                
-                lines.append(f'CREATE (:{label_str} {{id: {json.dumps(node_id)}{f", {prop_str}" if prop_str else ""}}})')
-            
+
+                lines.append(
+                    f"CREATE (:{label_str} {{id: {json.dumps(node_id)}{f', {prop_str}' if prop_str else ''}}})"
+                )
+
             lines.append("")
-            
+
             # Generate CREATE statements for relationships
             for row in rel_results:
                 from_id = row.get("from_id")
                 to_id = row.get("to_id")
                 rel_type = row.get("rel_type", "RELATED_TO")
-                
-                lines.append(f'MATCH (a {{id: {json.dumps(from_id)}}}), (b {{id: {json.dumps(to_id)}}})')
-                lines.append(f'CREATE (a)-[:{rel_type}]->(b)')
+
+                lines.append(
+                    f"MATCH (a {{id: {json.dumps(from_id)}}}), (b {{id: {json.dumps(to_id)}}})"
+                )
+                lines.append(f"CREATE (a)-[:{rel_type}]->(b)")
                 lines.append("")
-            
+
             output_content = "\n".join(lines)
 
         elif format == "graphml":
@@ -621,23 +689,25 @@ def export_data(
                 '  <key id="label" for="node" attr.name="label" attr.type="string"/>',
                 '  <graph id="code-atlas" edgedefault="directed">',
             ]
-            
+
             for i, row in enumerate(entity_results):
                 node = row.get("e", {})
                 node_id = node.get("id", f"node_{i}")
                 node_label = row.get("types", ["Unknown"])[0] if row.get("types") else "Unknown"
                 lines.append(f'    <node id="{node_id}">')
                 lines.append(f'      <data key="label">{node_label}</data>')
-                lines.append('    </node>')
-            
+                lines.append("    </node>")
+
             for i, row in enumerate(rel_results):
                 from_id = row.get("from_id", f"from_{i}")
                 to_id = row.get("to_id", f"to_{i}")
                 rel_type = row.get("rel_type", "RELATED_TO")
-                lines.append(f'    <edge id="e{i}" source="{from_id}" target="{to_id}" label="{rel_type}"/>')
-            
-            lines.extend(['  </graph>', '</graphml>'])
-            
+                lines.append(
+                    f'    <edge id="e{i}" source="{from_id}" target="{to_id}" label="{rel_type}"/>'
+                )
+
+            lines.extend(["  </graph>", "</graphml>"])
+
             output_content = "\n".join(lines)
 
         # Write output file
@@ -646,14 +716,16 @@ def export_data(
         output_path.write_text(output_content)
 
         if json_output:
-            output_json({
-                "success": True,
-                "operation": "export",
-                "output_file": str(output_path.absolute()),
-                "format": format,
-                "entity_count": len(entity_results),
-                "relationship_count": len(rel_results),
-            })
+            output_json(
+                {
+                    "success": True,
+                    "operation": "export",
+                    "output_file": str(output_path.absolute()),
+                    "format": format,
+                    "entity_count": len(entity_results),
+                    "relationship_count": len(rel_results),
+                }
+            )
         else:
             console.print(f"[green]✓[/green] Exported to [cyan]{output_path.absolute()}[/cyan]")
             console.print(f"  Format: [yellow]{format}[/yellow]")
@@ -669,20 +741,17 @@ def export_data(
 # STATUS COMMAND
 # =============================================================================
 
+
 @app.command("status")
 def show_status(
     config: Path | None = typer.Option(
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
-    graph_url: str | None = typer.Option(
-        None, "--graph-url", "-g", help="Redis/FalkorDB URL"
-    ),
+    graph_url: str | None = typer.Option(None, "--graph-url", "-g", help="Redis/FalkorDB URL"),
     graph_name: str | None = typer.Option(
         None, "--graph-name", "-n", help="Graph name in FalkorDB"
     ),
-    json_output: bool = typer.Option(
-        False, "--json", help="Output JSON for agent parsing"
-    ),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON for agent parsing"),
 ) -> None:
     """Show status of the Code Atlas knowledge graph."""
     settings = load_settings(config)
@@ -698,12 +767,14 @@ def show_status(
 
     if not db_connected:
         if json_output:
-            output_json({
-                "success": False,
-                "operation": "status",
-                "error": "Database connection failed",
-                "redis_url": redis_url,
-            })
+            output_json(
+                {
+                    "success": False,
+                    "operation": "status",
+                    "error": "Database connection failed",
+                    "redis_url": redis_url,
+                }
+            )
         else:
             console.print("[red]✗[/red] Database connection failed")
             console.print(f"  URL: [dim]{redis_url}[/dim]")
@@ -735,37 +806,44 @@ def show_status(
         total_relationships = sum(row.get("count", 0) for row in rel_counts)
 
         if json_output:
-            output_json({
-                "success": True,
-                "operation": "status",
-                "graph_name": graph,
-                "redis_url": redis_url,
-                "connected": True,
-                "entities": {
-                    "total": total_entities,
-                    "by_type": {row.get("type", "Unknown"): row.get("count", 0) for row in entity_counts},
-                },
-                "relationships": {
-                    "total": total_relationships,
-                    "by_type": {row.get("type", "Unknown"): row.get("count", 0) for row in rel_counts},
-                },
-            })
+            output_json(
+                {
+                    "success": True,
+                    "operation": "status",
+                    "graph_name": graph,
+                    "redis_url": redis_url,
+                    "connected": True,
+                    "entities": {
+                        "total": total_entities,
+                        "by_type": {
+                            row.get("type", "Unknown"): row.get("count", 0) for row in entity_counts
+                        },
+                    },
+                    "relationships": {
+                        "total": total_relationships,
+                        "by_type": {
+                            row.get("type", "Unknown"): row.get("count", 0) for row in rel_counts
+                        },
+                    },
+                }
+            )
         else:
-            console.print(Panel(
-                f"[bold]Graph:[/bold] {graph}\n"
-                f"[bold]Database:[/bold] {redis_url}",
-                title="Code Atlas Status",
-                border_style="green",
-            ))
+            console.print(
+                Panel(
+                    f"[bold]Graph:[/bold] {graph}\n[bold]Database:[/bold] {redis_url}",
+                    title="Code Atlas Status",
+                    border_style="green",
+                )
+            )
 
             if entity_counts:
                 table = Table(title="Entity Counts")
                 table.add_column("Type", style="cyan")
                 table.add_column("Count", style="green", justify="right")
-                
+
                 for row in entity_counts:
                     table.add_row(row.get("type", "Unknown"), str(row.get("count", 0)))
-                
+
                 table.add_row("[bold]Total[/bold]", f"[bold]{total_entities}[/bold]")
                 console.print(table)
 
@@ -773,10 +851,10 @@ def show_status(
                 table = Table(title="Relationship Counts")
                 table.add_column("Type", style="cyan")
                 table.add_column("Count", style="green", justify="right")
-                
+
                 for row in rel_counts:
                     table.add_row(row.get("type", "Unknown"), str(row.get("count", 0)))
-                
+
                 table.add_row("[bold]Total[/bold]", f"[bold]{total_relationships}[/bold]")
                 console.print(table)
 
@@ -788,6 +866,7 @@ def show_status(
 # REPORT COMMAND (updated with --json)
 # =============================================================================
 
+
 @app.command("report")
 def generate_report(
     config: Path | None = typer.Option(
@@ -796,9 +875,7 @@ def generate_report(
     graph_name: str = typer.Option("code_atlas", help="Graph name in FalkorDB."),
     redis_url: str = typer.Option("redis://localhost:6379", help="FalkorDB connection URL."),
     top_n: int = typer.Option(10, help="Number of top entities to show."),
-    json_output: bool = typer.Option(
-        False, "--json", help="Output JSON for agent parsing."
-    ),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON for agent parsing."),
 ) -> None:
     """Generate summary report from knowledge graph."""
     try:
@@ -806,10 +883,11 @@ def generate_report(
         client.ping()
     except (redis.ConnectionError, redis.TimeoutError) as e:
         output_error(
-            "report", "CONNECTION_ERROR",
+            "report",
+            "CONNECTION_ERROR",
             f"Failed to connect to FalkorDB at {redis_url}",
             {"error": str(e)},
-            json_output
+            json_output,
         )
         return
 
@@ -857,22 +935,27 @@ def generate_report(
     recent_result = query_graph(recent_query)
 
     if json_output:
-        output_json({
-            "success": True,
-            "operation": "report",
-            "graph_name": graph_name,
-            "top_files": [{"name": row[0], "mentions": row[1]} for row in files_result],
-            "top_concepts": [{"name": row[0], "mentions": row[1]} for row in concepts_result],
-            "stats": {
-                "total_sessions": stats_result[0][0] if stats_result else 0,
-                "avg_size_kb": round(stats_result[0][1] / 1024, 1) if stats_result else 0,
-                "total_size_mb": round(stats_result[0][2] / (1024 * 1024), 2) if stats_result else 0,
-            } if stats_result else None,
-            "recent_sessions": [
-                {"id": row[0], "project": row[1], "modified": row[2]}
-                for row in recent_result
-            ],
-        })
+        output_json(
+            {
+                "success": True,
+                "operation": "report",
+                "graph_name": graph_name,
+                "top_files": [{"name": row[0], "mentions": row[1]} for row in files_result],
+                "top_concepts": [{"name": row[0], "mentions": row[1]} for row in concepts_result],
+                "stats": {
+                    "total_sessions": stats_result[0][0] if stats_result else 0,
+                    "avg_size_kb": round(stats_result[0][1] / 1024, 1) if stats_result else 0,
+                    "total_size_mb": round(stats_result[0][2] / (1024 * 1024), 2)
+                    if stats_result
+                    else 0,
+                }
+                if stats_result
+                else None,
+                "recent_sessions": [
+                    {"id": row[0], "project": row[1], "modified": row[2]} for row in recent_result
+                ],
+            }
+        )
     else:
         if files_result:
             files_table = Table("File", "Mentions", title=f"Top {top_n} Files")
@@ -906,7 +989,10 @@ def generate_report(
 
         if recent_result:
             from datetime import datetime as dt
-            recent_table = Table("Session ID", "Project", "Modified", title=f"Recent {top_n} Sessions")
+
+            recent_table = Table(
+                "Session ID", "Project", "Modified", title=f"Recent {top_n} Sessions"
+            )
             for row in recent_result:
                 session_id = str(row[0])[:12] + "..."
                 project = str(row[1])
@@ -917,12 +1003,15 @@ def generate_report(
             console.print("[yellow]No recent sessions found[/]")
 
         if not any([files_result, concepts_result, stats_result, recent_result]):
-            console.print("\n[yellow]Graph appears to be empty. Run 'code-atlas index' to populate it.[/]")
+            console.print(
+                "\n[yellow]Graph appears to be empty. Run 'code-atlas index' to populate it.[/]"
+            )
 
 
 # =============================================================================
 # INDEXES COMMAND (updated with --json)
 # =============================================================================
+
 
 @app.command("indexes")
 def manage_indexes(
@@ -931,12 +1020,8 @@ def manage_indexes(
     ),
     graph_name: str = typer.Option("code_atlas", help="Graph name in FalkorDB."),
     redis_url: str = typer.Option("redis://localhost:6379", help="FalkorDB connection URL."),
-    action: str = typer.Option(
-        "list", "--action", "-a", help="Action: list, create, verify, drop"
-    ),
-    json_output: bool = typer.Option(
-        False, "--json", help="Output JSON for agent parsing"
-    ),
+    action: str = typer.Option("list", "--action", "-a", help="Action: list, create, verify, drop"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON for agent parsing"),
 ) -> None:
     """Manage database indexes for optimal query performance."""
     settings = load_settings(config)
@@ -946,10 +1031,11 @@ def manage_indexes(
         client.ping()
     except (redis.ConnectionError, redis.TimeoutError) as e:
         output_error(
-            "indexes", "CONNECTION_ERROR",
+            "indexes",
+            "CONNECTION_ERROR",
             f"Failed to connect to FalkorDB at {redis_url}",
             {"error": str(e)},
-            json_output
+            json_output,
         )
         return
 
@@ -959,19 +1045,21 @@ def manage_indexes(
         dry_run=False,
         create_indexes=settings.create_db_indexes,
         index_timeout=settings.db_index_creation_timeout,
-        verify_indexes_after_creation=settings.verify_indexes
+        verify_indexes_after_creation=settings.verify_indexes,
     )
 
     if action == "list":
         indexes = populator.list_indexes()
-        
+
         if json_output:
-            output_json({
-                "success": True,
-                "operation": "indexes",
-                "action": "list",
-                "indexes": indexes,
-            })
+            output_json(
+                {
+                    "success": True,
+                    "operation": "indexes",
+                    "action": "list",
+                    "indexes": indexes,
+                }
+            )
         else:
             console.print(Panel("Database Index Configuration", expand=False))
             table = Table("Category", "Index Count", "Description")
@@ -980,10 +1068,12 @@ def manage_indexes(
                 "Entity": "Indexes for File and Concept entities (id, name, type)",
                 "Insight": "Indexes for Insight nodes (id)",
                 "Relationships": "Indexes for MENTIONS relationships (confidence, timestamp)",
-                "FullText": "Full-text search indexes for entity names"
+                "FullText": "Full-text search indexes for entity names",
             }
             for category, index_list in indexes.items():
-                table.add_row(category, str(len(index_list)), category_descriptions.get(category, "Unknown"))
+                table.add_row(
+                    category, str(len(index_list)), category_descriptions.get(category, "Unknown")
+                )
             console.print(table)
             total_indexes = sum(len(indexes) for indexes in indexes.values())
             console.print(f"\n[dim]Total indexes defined: {total_indexes}[/]")
@@ -995,31 +1085,38 @@ def manage_indexes(
             dry_run=False,
             create_indexes=True,
             index_timeout=settings.db_index_creation_timeout,
-            verify_indexes_after_creation=settings.verify_indexes
+            verify_indexes_after_creation=settings.verify_indexes,
         )
-        index_queries = [q for q in creation_populator.executed_queries
-                        if "CREATE INDEX" in q or "FULLTEXT INDEX" in q]
-        
+        index_queries = [
+            q
+            for q in creation_populator.executed_queries
+            if "CREATE INDEX" in q or "FULLTEXT INDEX" in q
+        ]
+
         if json_output:
-            output_json({
-                "success": True,
-                "operation": "indexes",
-                "action": "create",
-                "indexes_created": len(index_queries),
-            })
+            output_json(
+                {
+                    "success": True,
+                    "operation": "indexes",
+                    "action": "create",
+                    "indexes_created": len(index_queries),
+                }
+            )
         else:
             console.print(f"[green]✅ {len(index_queries)} index creation queries executed[/]")
 
     elif action == "verify":
         verification_result = populator.verify_indexes()
-        
+
         if json_output:
-            output_json({
-                "success": True,
-                "operation": "indexes",
-                "action": "verify",
-                "result": verification_result,
-            })
+            output_json(
+                {
+                    "success": True,
+                    "operation": "indexes",
+                    "action": "verify",
+                    "result": verification_result,
+                }
+            )
         else:
             if "error" in verification_result:
                 console.print(f"[red]❌ {verification_result['error']}[/]")
@@ -1038,31 +1135,37 @@ def manage_indexes(
             if not typer.confirm("This will remove all indexes. Continue?", default=False):
                 console.print("[dim]Operation cancelled.[/]")
                 return
-        
+
         populator.drop_indexes()
-        
+
         if json_output:
-            output_json({
-                "success": True,
-                "operation": "indexes",
-                "action": "drop",
-            })
+            output_json(
+                {
+                    "success": True,
+                    "operation": "indexes",
+                    "action": "drop",
+                }
+            )
         else:
             console.print("[green]✅ Index drop operation completed[/]")
-            console.print("[yellow]Note: Some indexes may be automatically recreated on next startup[/]")
+            console.print(
+                "[yellow]Note: Some indexes may be automatically recreated on next startup[/]"
+            )
 
     else:
         output_error(
-            "indexes", "INVALID_ACTION",
+            "indexes",
+            "INVALID_ACTION",
             f"Invalid action: {action}",
             {"valid": ["list", "create", "verify", "drop"]},
-            json_output
+            json_output,
         )
 
 
 # =============================================================================
 # METRICS COMMAND (updated with --json)
 # =============================================================================
+
 
 @app.command("metrics")
 def start_metrics_server(
@@ -1076,7 +1179,7 @@ def start_metrics_server(
 ) -> None:
     """Start the Prometheus metrics server for monitoring."""
     import threading
-    
+
     settings = load_settings(config)
 
     if host:
@@ -1086,37 +1189,46 @@ def start_metrics_server(
 
     if not settings.enable_metrics:
         output_error(
-            "metrics", "METRICS_DISABLED",
+            "metrics",
+            "METRICS_DISABLED",
             "Metrics collection is disabled in configuration.",
-            {"hint": "Set enable_metrics = true in .code-atlas.toml or CODE_ATLAS_ENABLE_METRICS=true"},
-            json_output
+            {
+                "hint": "Set enable_metrics = true in .code-atlas.toml or CODE_ATLAS_ENABLE_METRICS=true"
+            },
+            json_output,
         )
         return
 
     if json_output:
-        output_json({
-            "success": True,
-            "operation": "metrics",
-            "status": "starting",
-            "host": settings.metrics_host,
-            "port": settings.metrics_port,
-            "daemon": daemon,
-        })
+        output_json(
+            {
+                "success": True,
+                "operation": "metrics",
+                "status": "starting",
+                "host": settings.metrics_host,
+                "port": settings.metrics_port,
+                "daemon": daemon,
+            }
+        )
     else:
-        console.print(Panel(
-            f"[bold]Metrics Server[/bold]\n"
-            f"Host: {settings.metrics_host}\n"
-            f"Port: {settings.metrics_port}\n"
-            f"Metrics: http://{settings.metrics_host}:{settings.metrics_port}{settings.metrics_path}",
-            title="Starting Server",
-            expand=False
-        ))
+        console.print(
+            Panel(
+                f"[bold]Metrics Server[/bold]\n"
+                f"Host: {settings.metrics_host}\n"
+                f"Port: {settings.metrics_port}\n"
+                f"Metrics: http://{settings.metrics_host}:{settings.metrics_port}{settings.metrics_path}",
+                title="Starting Server",
+                expand=False,
+            )
+        )
 
     try:
         if daemon:
+
             def run_server():
                 server = MetricsServer(settings)
                 server.run()
+
             server_thread = threading.Thread(target=run_server, daemon=True)
             server_thread.start()
             console.print("[green]✅ Metrics server started in daemon mode[/]")
@@ -1136,6 +1248,7 @@ def start_metrics_server(
 # SERVE COMMAND
 # =============================================================================
 
+
 @app.command("serve")
 def serve_api(
     config: Path | None = typer.Option(
@@ -1148,6 +1261,7 @@ def serve_api(
 ) -> None:
     """Start the Code Atlas API server."""
     import uvicorn
+
     from .api.main import create_app
 
     settings = load_settings(config)
@@ -1155,12 +1269,14 @@ def serve_api(
     settings.metrics_port = port
     settings.enable_metrics = True
 
-    console.print(Panel.fit(
-        f"[bold blue]Code Atlas API Server[/]\n\n"
-        f"Host: {host}\nPort: {port}\nWorkers: {workers}\nReload: {reload}\n"
-        f"\n[dim]API docs: http://{host}:{port}/docs[/]",
-        title="Starting Server",
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold blue]Code Atlas API Server[/]\n\n"
+            f"Host: {host}\nPort: {port}\nWorkers: {workers}\nReload: {reload}\n"
+            f"\n[dim]API docs: http://{host}:{port}/docs[/]",
+            title="Starting Server",
+        )
+    )
 
     if reload:
         uvicorn.run("code_atlas.api.main:app", host=host, port=port, reload=True, log_level="info")
