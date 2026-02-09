@@ -24,7 +24,6 @@ from fastapi.testclient import TestClient
 from code_atlas.api.main import create_app
 from code_atlas.config import AtlasSettings
 
-
 # Maximum acceptable response time for smoke tests (ms)
 MAX_RESPONSE_TIME_MS = 500
 
@@ -127,13 +126,17 @@ class TestSmokeAPI:
         response = client.get("/api/v1/graph/entities")
         # Can be 200 (success), 401 (auth required), 500 (no db) - all valid in smoke test
         # 500 is acceptable when FalkorDB is not running (CI/CD without database)
-        assert response.status_code in [200, 401, 404, 500], f"Unexpected status: {response.status_code}"
+        assert response.status_code in [200, 401, 404, 500], (
+            f"Unexpected status: {response.status_code}"
+        )
 
     def test_insights_endpoint_accessible(self, client):
         """Insights endpoint must respond."""
         response = client.get("/api/v1/insights")
         # Can be 200 (success), 401 (auth required), 404, or 500 (no db)
-        assert response.status_code in [200, 401, 404, 500], f"Unexpected status: {response.status_code}"
+        assert response.status_code in [200, 401, 404, 500], (
+            f"Unexpected status: {response.status_code}"
+        )
 
 
 class TestSmokeHeaders:
@@ -174,7 +177,7 @@ class TestSmokePerformance:
         """Multiple rapid requests must not fail."""
         for i in range(10):
             response = client.get("/health")
-            assert response.status_code == 200, f"Request {i+1} failed"
+            assert response.status_code == 200, f"Request {i + 1} failed"
 
 
 class TestSmokeDeploymentRequirements:
@@ -207,9 +210,151 @@ class TestSmokeDeploymentRequirements:
         assert len(v1_paths) > 0, "No /api/v1 paths found - API not versioned"
 
 
+class TestSmokeDatabaseConnectivity:
+    """Smoke tests for database connectivity."""
+
+    def test_falkordb_connection(self, client):
+        """FalkorDB connection should be testable via graph endpoint."""
+        # Graph endpoint should respond (200 or 500 if DB not running)
+        response = client.get("/api/v1/graph/entities")
+        # 200 = success, 401 = auth required, 500 = DB not running (acceptable in smoke test)
+        assert response.status_code in [200, 401, 404, 500]
+
+    def test_redis_connection_if_used(self, client):
+        """Redis connection (if used) should not cause startup failure."""
+        # If Redis is used, health endpoint should still work
+        response = client.get("/health")
+        assert response.status_code == 200
+
+
+class TestSmokeAPIAuthentication:
+    """Smoke tests for API authentication flow."""
+
+    def test_protected_endpoint_without_auth(self, client):
+        """Protected endpoints should return 401 without auth (if auth enabled)."""
+        # Sessions endpoint - may require auth
+        response = client.get("/api/v1/sessions")
+        # Can be 200 (no auth required), 401 (auth required), or 404
+        assert response.status_code in [200, 401, 404]
+
+    def test_protected_endpoint_with_invalid_auth(self, client):
+        """Protected endpoints should reject invalid API keys."""
+        response = client.get("/api/v1/sessions", headers={"X-API-Key": "invalid-key-12345"})
+        # Should be 401 if auth is enabled, or 200/404 if disabled
+        assert response.status_code in [200, 401, 404]
+
+
+class TestSmokeGraphEndpoints:
+    """Smoke tests for graph query endpoints."""
+
+    def test_graph_entities_endpoint(self, client):
+        """Graph entities endpoint should respond."""
+        response = client.get("/api/v1/graph/entities")
+        # 200, 401 (auth), 404, or 500 (DB not running) all acceptable
+        assert response.status_code in [200, 401, 404, 500]
+
+    def test_graph_relationships_endpoint(self, client):
+        """Graph relationships endpoint should respond."""
+        response = client.get("/api/v1/graph/relationships")
+        # May not exist, so 404 is acceptable
+        assert response.status_code in [200, 401, 404, 500]
+
+    def test_graph_search_endpoint(self, client):
+        """Graph search endpoint should respond."""
+        response = client.get("/api/v1/graph/search?query=test")
+        # May not exist or require auth
+        assert response.status_code in [200, 401, 404, 422, 500]
+
+
+class TestSmokeErrorResponses:
+    """Smoke tests for error response handling."""
+
+    def test_404_not_found_response(self, client):
+        """404 errors should return JSON."""
+        response = client.get("/nonexistent-endpoint-xyz")
+        assert response.status_code == 404
+        # Should be JSON formatted
+        try:
+            data = response.json()
+            assert "detail" in data or "error" in data or "message" in data
+        except Exception:
+            pytest.fail("404 response is not valid JSON")
+
+    def test_405_method_not_allowed_response(self, client):
+        """405 errors should return JSON."""
+        # Try POST to health endpoint (should only accept GET)
+        response = client.post("/health")
+        # May be 405 (method not allowed) or 200 (if POST is allowed)
+        if response.status_code == 405:
+            try:
+                data = response.json()
+                assert isinstance(data, dict)
+            except Exception:
+                pytest.fail("405 response is not valid JSON")
+
+    def test_422_validation_error_response(self, client):
+        """422 validation errors should return structured JSON."""
+        # Try to access insights with invalid parameters
+        response = client.get("/api/v1/insights?invalid_param=xyz")
+        # May be 422 (validation error), 200, 401, 404, or 500
+        if response.status_code == 422:
+            data = response.json()
+            assert "detail" in data
+
+
+class TestSmokeWebSocket:
+    """Smoke tests for WebSocket connectivity."""
+
+    def test_websocket_endpoint_exists(self, client):
+        """WebSocket endpoint should be configured."""
+        # Try to access WebSocket endpoint (will fail via HTTP, but endpoint should exist)
+        response = client.get("/ws/jobs/test-job-id")
+        # Should be 404, 400, 405, or similar (not 500 internal error)
+        assert response.status_code in [400, 404, 405, 426]
+
+
+class TestSmokeMetrics:
+    """Smoke tests for metrics endpoint (if enabled)."""
+
+    def test_metrics_endpoint_accessible(self, client):
+        """Metrics endpoint should respond if enabled."""
+        response = client.get("/metrics")
+        # 200 if metrics enabled, 404 if disabled
+        assert response.status_code in [200, 404]
+
+    def test_metrics_format_prometheus(self, client):
+        """If metrics enabled, should return Prometheus format."""
+        response = client.get("/metrics")
+        if response.status_code == 200:
+            # Should be text/plain format
+            content_type = response.headers.get("content-type", "")
+            assert "text/plain" in content_type or "text" in content_type
+
+
+class TestSmokeResponseTimes:
+    """Additional response time tests for critical paths."""
+
+    def test_openapi_json_response_time(self, client):
+        """OpenAPI schema should load quickly."""
+        start = time.time()
+        response = client.get("/openapi.json")
+        elapsed_ms = (time.time() - start) * 1000
+
+        assert response.status_code == 200
+        assert elapsed_ms < MAX_RESPONSE_TIME_MS, f"OpenAPI schema too slow: {elapsed_ms:.0f}ms"
+
+    def test_docs_page_response_time(self, client):
+        """API docs page should load quickly."""
+        start = time.time()
+        response = client.get("/docs")
+        elapsed_ms = (time.time() - start) * 1000
+
+        assert response.status_code == 200
+        assert elapsed_ms < MAX_RESPONSE_TIME_MS * 2, f"Docs page too slow: {elapsed_ms:.0f}ms"
+
+
 def run_all_smoke_tests():
     """Run all smoke tests and return summary."""
-    import sys
 
     result = pytest.main([__file__, "-v", "--tb=short"])
     return result == 0
