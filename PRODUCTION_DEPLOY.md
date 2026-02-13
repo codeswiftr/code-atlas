@@ -40,6 +40,36 @@ Due to large monorepo size (parent .git directory), CLI upload failed with 413 P
 - Pushes to GitHub Container Registry (ghcr.io)
 - Railway configured to deploy from built image
 
+## Blocker: GitHub Actions Workflow Path
+
+**Status**: 🔴 BLOCKING DEPLOYMENT
+
+**Issue**: CD workflow uses `context: ./backend` which doesn't include `forge-shared` (monorepo dependency)
+
+**Error**:
+```
+Failed to parse entry: `forge-shared`
+Caused by: path dependency outside of build context
+```
+
+**Fix Required** in `.github/workflows/cd.yml`:
+```yaml
+- name: Build and push Docker image
+  uses: docker/build-push-action@v5
+  with:
+    context: .                    # Changed from ./backend
+    file: ./backend/Dockerfile    # Specify Dockerfile path
+    # ... rest of config
+```
+
+**Permission Issue**: Cannot push workflow changes via CLI (OAuth scope restriction)
+
+**Workaround Options**:
+1. Edit workflow via GitHub web UI directly
+2. Have someone with push permissions update the workflow
+3. Copy forge-shared into backend directory before build
+4. Use Railway CLI from a clean directory with just backend code
+
 ## Docker Build
 
 Multi-stage Dockerfile at `backend/Dockerfile`:
