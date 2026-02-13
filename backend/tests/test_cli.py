@@ -26,10 +26,14 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from code_atlas.cli import app
 from code_atlas.config import AtlasSettings
 from code_atlas.insight_extractor import Entity, ExtractionResult, Relationship
-from code_atlas.models import PipelineStats, SessionMetadata
+from code_atlas.models import SessionMetadata
+from code_atlas.pipeline import PipelineStats
 
 # Test fixtures
-runner = CliRunner(mix_stderr=False)
+@pytest.fixture
+def runner():
+    """Create a CLI runner."""
+    return CliRunner(mix_stderr=False)
 
 
 @pytest.fixture
