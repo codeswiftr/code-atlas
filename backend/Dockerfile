@@ -30,7 +30,8 @@ COPY README.md* ./
 COPY src/ ./src/
 
 # Install dependencies (production only)
-RUN uv sync --frozen --no-dev
+# Note: --frozen removed due to workspace path issues in lockfile
+RUN uv sync --no-dev || uv pip install -e .
 
 # =============================================================================
 # Stage 2: Runtime - Minimal production image
