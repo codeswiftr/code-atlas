@@ -21,17 +21,21 @@ ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
 
-# Copy dependency files first (better layer caching)
-# Context is ./backend (set in CD workflow)
-COPY pyproject.toml uv.lock ./
-COPY README.md* ./
+# Copy forge-shared first (monorepo dependency)
+COPY forge-shared/ /app/forge-shared/
+
+# Copy dependency files
+COPY backend/pyproject.toml backend/uv.lock ./
+COPY backend/README.md* ./
 
 # Copy application code
-COPY src/ ./src/
+COPY backend/src/ ./src/
+
+# Modify pyproject.toml to use local path for forge-shared
+RUN sed -i 's|../../../forge-shared|./forge-shared|g' pyproject.toml
 
 # Install dependencies (production only)
-# Note: --frozen removed due to workspace path issues in lockfile
-RUN uv sync --no-dev || uv pip install -e .
+RUN uv pip install -e ./forge-shared && uv pip install -e .
 
 # =============================================================================
 # Stage 2: Runtime - Minimal production image
@@ -55,6 +59,7 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY --from=builder /app/src /app/src
+COPY --from=builder /app/forge-shared /app/forge-shared
 COPY --from=builder /app/pyproject.toml /app/
 
 # Create data directory for SQLite databases
