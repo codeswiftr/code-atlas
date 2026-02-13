@@ -22,13 +22,12 @@ ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
 
 # Copy dependency files first (better layer caching)
-# Note: When building with railway.json context from project root,
-# paths are relative to the root, not the Dockerfile location
-COPY backend/pyproject.toml backend/uv.lock ./
-COPY backend/README.md* ./
+# Context is ./backend (set in CD workflow)
+COPY pyproject.toml uv.lock ./
+COPY README.md* ./
 
-# Copy application code (required for editable install)
-COPY backend/src/ ./src/
+# Copy application code
+COPY src/ ./src/
 
 # Install dependencies (production only)
 RUN uv sync --frozen --no-dev
@@ -64,7 +63,6 @@ RUN mkdir -p /app/data && chown -R atlas:atlas /app
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    # Application defaults
     CODE_ATLAS_HOST=0.0.0.0 \
     CODE_ATLAS_PORT=8000 \
     CODE_ATLAS_LOG_LEVEL=INFO \

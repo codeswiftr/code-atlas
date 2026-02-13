@@ -20,3 +20,11 @@ __pycache__
 .forge
 .DS_Store
 *.pyc
+
+# Parent directories
+../*
+../.git
+../.forge
+../harness
+../forge-*
+../*/
