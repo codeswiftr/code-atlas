@@ -34,8 +34,10 @@ COPY backend/src/ ./src/
 # Modify pyproject.toml to use local path for forge-shared
 RUN sed -i 's|../../../forge-shared|./forge-shared|g' pyproject.toml
 
-# Install dependencies (production only)
-RUN uv pip install -e ./forge-shared && uv pip install -e .
+# Create virtual environment and install dependencies
+RUN uv venv && \
+    uv pip install -e ./forge-shared && \
+    uv pip install -e .
 
 # =============================================================================
 # Stage 2: Runtime - Minimal production image
