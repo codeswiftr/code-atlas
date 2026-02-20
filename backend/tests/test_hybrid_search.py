@@ -164,7 +164,9 @@ class TestHybridSearch:
                 # Combined: 0.4 * 0.9 + 0.6 * 0.85 = 0.87
                 assert entity_1.combined_score == pytest.approx(0.87)
 
-    def test_search_filters_by_min_score(self, mock_graph, mock_vector_store, mock_embedding_generator):
+    def test_search_filters_by_min_score(
+        self, mock_graph, mock_vector_store, mock_embedding_generator
+    ):
         """Test that search filters by minimum score."""
         mock_vector_store.search_similar.return_value = [
             ("entity-1", 0.85),

@@ -550,7 +550,7 @@ class TestRateLimiting:
     def test_rate_limit_exceeded(self, rate_limited_client):
         """Test rate limit is enforced."""
         # Make requests up to the limit
-        for i in range(5):
+        for _ in range(5):
             response = rate_limited_client.get("/api/v1/sessions")
             assert response.status_code == 200
 

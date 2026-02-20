@@ -225,7 +225,9 @@ class TestMetricsServer:
     @patch('code_atlas.server.signal.signal')
     @patch('uvicorn.Server')
     @patch('uvicorn.Config')
-    async def test_signal_handlers(self, mock_config_class, mock_server_class, mock_signal_func) -> None:
+    async def test_signal_handlers(
+        self, mock_config_class, mock_server_class, mock_signal_func
+    ) -> None:
         """Test signal handler setup."""
         import signal as signal_module
 

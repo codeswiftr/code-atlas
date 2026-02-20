@@ -1,5 +1,7 @@
 """Tests for vector storage functionality."""
 
+from typing import Any
+
 import pytest
 
 from code_atlas.vector_store import (

@@ -16,7 +16,10 @@ class TestRAGService:
                 return []
 
         class MockHybridSearch:
-            def search(self, query, entity_type=None, limit=10, min_score=0.0, use_graph_structure=True, use_vector_search=True):
+            def search(  # noqa: E501
+                self, query, entity_type=None, limit=10, min_score=0.0,
+                use_graph_structure=True, use_vector_search=True
+            ):
                 return []
 
         mock_graph = MockGraph()
@@ -37,7 +40,10 @@ class TestRAGService:
                 return []
 
         class MockHybridSearch:
-            def search(self, query, entity_type=None, limit=10, min_score=0.0, use_graph_structure=True, use_vector_search=True):
+            def search(  # noqa: E501
+                self, query, entity_type=None, limit=10, min_score=0.0,
+                use_graph_structure=True, use_vector_search=True
+            ):
                 return []
 
         mock_graph = MockGraph()
@@ -70,7 +76,9 @@ class TestCreateRAGService:
                 return []
 
         class MockVectorStore:
-            def search_similar(self, query_embedding, entity_type=None, limit=10, min_similarity=0.0):
+            def search_similar(
+                self, query_embedding, entity_type=None, limit=10, min_similarity=0.0
+            ):
                 return []
 
         mock_graph = MockGraph()

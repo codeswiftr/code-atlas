@@ -89,8 +89,8 @@ class TestSearchEndpoint:
         """Create test client with API key auth disabled and mocked graph."""
         monkeypatch.setenv("CODE_ATLAS_API_KEY_REQUIRED", "false")
 
-        from code_atlas.api.main import create_app
         from code_atlas.api.dependencies import get_graph_populator
+        from code_atlas.api.main import create_app
         from code_atlas.config import AtlasSettings
 
         settings = AtlasSettings()

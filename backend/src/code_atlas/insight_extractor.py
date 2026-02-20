@@ -7,7 +7,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from anthropic import Anthropic, APIError
@@ -319,7 +319,7 @@ class InsightExtractor:
             # Re-raise ValidationError as-is, wrap others in ValueError
             if isinstance(exc, ValidationError):
                 raise
-            raise ValueError(f"Invalid extraction schema: {exc}")
+            raise ValueError(f"Invalid extraction schema: {exc}") from exc
 
     def _call_llm_with_retry(
         self, session: ParsedSession, max_retries: int = 3
@@ -507,7 +507,7 @@ class InsightExtractor:
 
         # Update with actual cost and provenance
         result.estimated_cost_usd = actual_cost
-        result.extracted_at = datetime.now(tz=timezone.utc).isoformat()
+        result.extracted_at = datetime.now(tz=UTC).isoformat()
         result.extractor_model = self.model
         result.extraction_method = "llm"
 
@@ -557,7 +557,9 @@ class InsightExtractor:
         text = response.choices[0].message.content.strip()
 
         # Extract token usage
-        input_tokens = getattr(response.usage, "prompt_tokens", 0) if hasattr(response, "usage") else 0
+        input_tokens = (
+            getattr(response.usage, "prompt_tokens", 0) if hasattr(response, "usage") else 0
+        )
         output_tokens = (
             getattr(response.usage, "completion_tokens", 0) if hasattr(response, "usage") else 0
         )
@@ -590,7 +592,7 @@ class InsightExtractor:
 
         # Update with actual cost and provenance
         result.estimated_cost_usd = actual_cost
-        result.extracted_at = datetime.now(tz=timezone.utc).isoformat()
+        result.extracted_at = datetime.now(tz=UTC).isoformat()
         result.extractor_model = self.model
         result.extraction_method = "llm"
 
@@ -628,7 +630,7 @@ class InsightExtractor:
                 )
 
         # Extract file paths from message text using regex
-        # Pattern matches absolute paths like /Users/... or /home/... or relative paths with extensions
+        # Pattern matches absolute paths like /Users/... or /home/... or relative paths
         file_path_pattern = re.compile(
             r'(?:^|[\s"\':,\(\[])(/(?:Users|home|var|etc|opt|tmp)[^\s"\',:;\)\]\n]+\.[a-zA-Z0-9]+)|'
             r'(?:file_path["\']?\s*:\s*["\']?)([^\s"\',:;\)\]\n]+\.[a-zA-Z0-9]+)'
@@ -650,7 +652,10 @@ class InsightExtractor:
                                 type="file",
                                 name=file_path,
                                 confidence=0.8,  # Medium-high confidence for regex-extracted paths
-                                metadata={"project": session.metadata.project, "source": "text_extraction"},
+                                metadata={
+                                    "project": session.metadata.project,
+                                    "source": "text_extraction",
+                                },
                             )
                         )
 
@@ -670,7 +675,7 @@ class InsightExtractor:
             relationships=[],
             insights=insights,
             estimated_cost_usd=0.0,
-            extracted_at=datetime.now(tz=timezone.utc).isoformat(),
+            extracted_at=datetime.now(tz=UTC).isoformat(),
             extractor_model="heuristic",
             extraction_method="heuristic",
         )
@@ -690,7 +695,7 @@ class InsightExtractor:
         current_chunk: list[SessionMessage] = []
         current_tokens = 0
 
-        for i, message in enumerate(session.messages):
+        for message in session.messages:
             message_tokens = self._estimate_tokens(message.text)
 
             # If adding this message would exceed the limit, start a new chunk

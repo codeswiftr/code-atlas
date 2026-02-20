@@ -1,6 +1,6 @@
 """Unit tests for PostHog analytics integration."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -68,7 +68,7 @@ class TestPostHogAnalytics:
         settings = AtlasSettings(posthog_api_key="phc_test_key")
 
         with patch("code_atlas.posthog_analytics.HAS_POSTHOG", True):
-            with patch("code_atlas.posthog_analytics.posthog") as mock_posthog:
+            with patch("code_atlas.posthog_analytics.posthog"):
                 PostHogAnalytics.initialize(settings)
                 first_init = PostHogAnalytics._initialized
 

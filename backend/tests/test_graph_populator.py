@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 import redis
 
 from code_atlas.graph_populator import GraphPopulator
 from code_atlas.insight_extractor import Entity, ExtractionResult, Relationship
-from code_atlas.models import ParsedSession, SessionMetadata, SessionMessage
+from code_atlas.models import ParsedSession, SessionMessage, SessionMetadata
 
 
 def test_graph_populator_dry_run_records_queries() -> None:
@@ -16,7 +16,7 @@ def test_graph_populator_dry_run_records_queries() -> None:
         session_id="sess-001",
         project="atlas",
         size_bytes=10,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     session = ParsedSession(
         metadata=metadata,
@@ -114,7 +114,7 @@ def test_graph_populator_creates_session_node(
         session_id="test-sess-001",
         project="test_project",
         size_bytes=1024,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     session = ParsedSession(
         metadata=metadata,
@@ -157,7 +157,7 @@ def test_graph_populator_creates_entities_and_relationships(
         session_id="test-sess-002",
         project="test_project",
         size_bytes=512,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     session = ParsedSession(
         metadata=metadata,
@@ -209,7 +209,7 @@ def test_graph_populator_provenance_metadata(
         session_id="test-sess-provenance",
         project="test_project",
         size_bytes=256,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     session = ParsedSession(
         metadata=metadata,
@@ -295,13 +295,17 @@ def test_graph_populator_index_creation_during_initialization(
     )
 
     # Check that index creation queries were executed
-    index_queries = [q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q]
+    index_queries = [
+        q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q
+    ]
     assert len(index_queries) > 0, "No index creation queries were executed"
 
     # Verify critical indexes exist
     index_query_strings = " ".join(index_queries)
     assert ":Session(id)" in index_query_strings, "Missing Session id index"
-    assert ":File(name)" in index_query_strings or ":Concept(name)" in index_query_strings, "Missing entity name index"
+    assert (
+        ":File(name)" in index_query_strings or ":Concept(name)" in index_query_strings
+    ), "Missing entity name index"
 
 
 @pytest.mark.integration
@@ -319,8 +323,12 @@ def test_graph_populator_with_disabled_indexes(
     )
 
     # No index creation queries should be executed
-    index_queries = [q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q]
-    assert len(index_queries) == 0, "Index creation queries should not be executed when disabled"
+    index_queries = [
+        q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q
+    ]
+    assert len(index_queries) == 0, (
+        "Index creation queries should not be executed when disabled"
+    )
 
     # Test that normal operations still work
     metadata = SessionMetadata(
@@ -328,7 +336,7 @@ def test_graph_populator_with_disabled_indexes(
         session_id="test-sess-no-index",
         project="test_project",
         size_bytes=512,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     session = ParsedSession(
         metadata=metadata,

@@ -77,7 +77,10 @@ except (ImportError, RuntimeError) as e:
 # Skip all tests if CLI cannot be imported
 pytestmark = pytest.mark.skipif(
     not CLI_IMPORT_SUCCESS or not TYPER_AVAILABLE,
-    reason=f"CLI import failed: {CLI_IMPORT_ERROR if not CLI_IMPORT_SUCCESS else 'Typer not available'}",
+    reason=(
+        "CLI import failed: "
+        + (CLI_IMPORT_ERROR if not CLI_IMPORT_SUCCESS else "Typer not available")
+    ),
 )
 
 # Test runner (only created if imports successful)

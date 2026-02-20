@@ -1,7 +1,7 @@
 """Session management API endpoints."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -10,19 +10,19 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from ...config import AtlasSettings
 from ...job_store import JobStore, get_job_store
 from ...logging_config import get_logger
-from ...session_discovery import SessionDiscovery
 from ...pipeline import PipelineRunner
-from ..dependencies import Settings, ApiKey
 from ...schemas.sessions import (
+    JobStatus,
+    ProcessingJob,
+    ProcessingStatsResponse,
     SessionDiscoveryRequest,
     SessionDiscoveryResponse,
     SessionInfo,
     SessionProcessRequest,
     SessionProcessResponse,
-    ProcessingJob,
-    JobStatus,
-    ProcessingStatsResponse,
 )
+from ...session_discovery import SessionDiscovery
+from ..dependencies import ApiKey, Settings
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
@@ -43,7 +43,7 @@ def _session_to_info(path: Path, project_name: str | None = None) -> SessionInfo
         path=str(path),
         filename=path.name,
         size_bytes=stat.st_size,
-        modified_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+        modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
         project_name=project_name or path.parent.name,
     )
 
@@ -91,7 +91,7 @@ async def discover_sessions(
                 continue
 
             # Apply date filters
-            modified_at = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+            modified_at = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
             if request.modified_after and modified_at < request.modified_after:
                 continue
             if request.modified_before and modified_at > request.modified_before:
@@ -107,7 +107,7 @@ async def discover_sessions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Discovery failed: {str(exc)}",
-        )
+        ) from exc
 
     return SessionDiscoveryResponse(
         sessions=sessions,
@@ -133,14 +133,14 @@ def _process_sessions_background(
         return
 
     job.status = JobStatus.RUNNING
-    job.started_at = datetime.now(tz=timezone.utc)
+    job.started_at = datetime.now(tz=UTC)
     job_store.save(job)
 
     try:
         # Initialize pipeline components
-        from ...session_discovery import SessionDiscovery
-        from ...insight_extractor import InsightExtractor
         from ...graph_populator import GraphPopulator
+        from ...insight_extractor import InsightExtractor
+        from ...session_discovery import SessionDiscovery
 
         discovery = SessionDiscovery(root=settings.session_root)
         extractor = InsightExtractor()
@@ -195,7 +195,7 @@ def _process_sessions_background(
                 job_store.save(job)
 
         job.status = JobStatus.COMPLETED
-        job.completed_at = datetime.now(tz=timezone.utc)
+        job.completed_at = datetime.now(tz=UTC)
         job.current_session = None
         job_store.save(job)
 
@@ -203,7 +203,7 @@ def _process_sessions_background(
         logger.error("Job failed", job_id=job_id, error=str(exc))
         job.status = JobStatus.FAILED
         job.error_message = str(exc)
-        job.completed_at = datetime.now(tz=timezone.utc)
+        job.completed_at = datetime.now(tz=UTC)
         job_store.save(job)
 
 
@@ -250,7 +250,7 @@ async def process_sessions(
     job = ProcessingJob(
         job_id=job_id,
         status=JobStatus.PENDING,
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=datetime.now(tz=UTC),
         total_sessions=len(valid_paths),
         processed_sessions=0,
         failed_sessions=0,
@@ -341,7 +341,7 @@ async def cancel_job(
     job_store.update_status(
         job_id,
         JobStatus.CANCELLED,
-        completed_at=datetime.now(tz=timezone.utc),
+        completed_at=datetime.now(tz=UTC),
     )
 
 

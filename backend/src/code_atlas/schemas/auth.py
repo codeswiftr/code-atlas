@@ -59,7 +59,9 @@ class APIKeyCreateResponse(BaseModel):
     name: str
     scopes: list[APIKeyScope]
     expires_at: datetime | None
-    message: str = Field(default="API key created. Save the raw_key - it cannot be retrieved later.")
+    message: str = Field(
+        default="API key created. Save the raw_key - it cannot be retrieved later."
+    )
 
 
 class APIKeyInfo(BaseModel):

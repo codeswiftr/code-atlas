@@ -1,7 +1,7 @@
 """Middleware for Code Atlas API."""
 
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
@@ -69,7 +69,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             Tuple of (is_allowed, remaining_requests)
         """
         client_key = self._get_client_key(request)
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
 
         # Cleanup old requests
         self._cleanup_old_requests(client_key, now)
@@ -137,7 +137,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Log request details."""
-        start_time = datetime.now(tz=timezone.utc)
+        start_time = datetime.now(tz=UTC)
 
         # Get client info
         client_ip = request.client.host if request.client else "unknown"
@@ -155,7 +155,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
 
-            duration = (datetime.now(tz=timezone.utc) - start_time).total_seconds()
+            duration = (datetime.now(tz=UTC) - start_time).total_seconds()
 
             logger.info(
                 "Request completed",
@@ -168,7 +168,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             return response
 
         except Exception as exc:
-            duration = (datetime.now(tz=timezone.utc) - start_time).total_seconds()
+            duration = (datetime.now(tz=UTC) - start_time).total_seconds()
 
             logger.error(
                 "Request failed",

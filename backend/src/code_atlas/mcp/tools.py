@@ -174,7 +174,8 @@ class ToolManager:
         """Execute Cypher query."""
         # Security: Only allow read queries
         query_upper = query.upper().strip()
-        if any(keyword in query_upper for keyword in ["CREATE", "DELETE", "SET", "REMOVE", "MERGE", "DROP"]):
+        disallowed = ["CREATE", "DELETE", "SET", "REMOVE", "MERGE", "DROP"]
+        if any(keyword in query_upper for keyword in disallowed):
             return {
                 "error": "Only read queries are allowed (MATCH, RETURN, etc.)",
             }

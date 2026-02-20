@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -14,7 +14,7 @@ from code_atlas.insight_extractor import (
     InsightExtractor,
     Relationship,
 )
-from code_atlas.models import ParsedSession, SessionMetadata, SessionMessage
+from code_atlas.models import ParsedSession, SessionMessage, SessionMetadata
 
 
 def make_message(message_id: str, text_size: int = 100) -> SessionMessage:
@@ -35,7 +35,7 @@ def make_session(
         session_id=session_id,
         project="test-project",
         size_bytes=1024,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     messages = [
         make_message(f"m{i}", text_size=message_size) for i in range(message_count)
@@ -107,7 +107,7 @@ def test_chunk_overlap_preserved() -> None:
             session_id="sess-overlap",
             project="test",
             size_bytes=1024,
-            modified_at=datetime.now(tz=timezone.utc),
+            modified_at=datetime.now(tz=UTC),
         ),
         messages=messages,
         total_tokens=10000,
@@ -166,7 +166,7 @@ def test_merge_extractions_deduplicates_entities() -> None:
         relationships=[],
         insights=["Insight 1"],
         estimated_cost_usd=0.01,
-        extracted_at=datetime.now(tz=timezone.utc).isoformat(),
+        extracted_at=datetime.now(tz=UTC).isoformat(),
         extractor_model="test",
         extraction_method="llm",
     )
@@ -179,7 +179,7 @@ def test_merge_extractions_deduplicates_entities() -> None:
         relationships=[],
         insights=["Insight 2"],
         estimated_cost_usd=0.02,
-        extracted_at=datetime.now(tz=timezone.utc).isoformat(),
+        extracted_at=datetime.now(tz=UTC).isoformat(),
         extractor_model="test",
         extraction_method="llm",
     )
@@ -209,7 +209,7 @@ def test_merge_extractions_deduplicates_relationships() -> None:
         ],
         insights=[],
         estimated_cost_usd=0.01,
-        extracted_at=datetime.now(tz=timezone.utc).isoformat(),
+        extracted_at=datetime.now(tz=UTC).isoformat(),
         extractor_model="test",
         extraction_method="llm",
     )
@@ -222,7 +222,7 @@ def test_merge_extractions_deduplicates_relationships() -> None:
         ],
         insights=[],
         estimated_cost_usd=0.02,
-        extracted_at=datetime.now(tz=timezone.utc).isoformat(),
+        extracted_at=datetime.now(tz=UTC).isoformat(),
         extractor_model="test",
         extraction_method="llm",
     )
@@ -246,7 +246,7 @@ def test_merge_extractions_deduplicates_insights() -> None:
         relationships=[],
         insights=["Insight A", "Insight B", "Insight A"],  # Duplicate
         estimated_cost_usd=0.01,
-        extracted_at=datetime.now(tz=timezone.utc).isoformat(),
+        extracted_at=datetime.now(tz=UTC).isoformat(),
         extractor_model="test",
         extraction_method="llm",
     )
@@ -256,7 +256,7 @@ def test_merge_extractions_deduplicates_insights() -> None:
         relationships=[],
         insights=["Insight B", "Insight C"],  # Duplicate B
         estimated_cost_usd=0.02,
-        extracted_at=datetime.now(tz=timezone.utc).isoformat(),
+        extracted_at=datetime.now(tz=UTC).isoformat(),
         extractor_model="test",
         extraction_method="llm",
     )

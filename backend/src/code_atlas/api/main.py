@@ -1,23 +1,22 @@
 """Main FastAPI application for Code Atlas API."""
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+import psutil
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-import psutil
-
 from forge_shared.middleware import RequestIDMiddleware, SecurityMiddleware
-from forge_shared.utm import UTMMiddleware, get_utm_params
+from forge_shared.utm import UTMMiddleware
 
 from ..config import AtlasSettings
 from ..logging_config import get_logger
 from ..metrics import init_metrics
 from ..posthog_analytics import PostHogAnalytics
-from .middleware import RateLimitMiddleware
-from .v1 import admin_router, graph_router, sessions_router, insights_router
 from ..websocket import websocket_job_updates
+from .middleware import RateLimitMiddleware
+from .v1 import admin_router, graph_router, insights_router, sessions_router
 
 logger = get_logger(__name__)
 
@@ -146,7 +145,8 @@ X-API-Key: your-api-key-here
             SecurityMiddleware,
             hsts_enabled=not is_development,
             csp_policy=(
-                "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'"
+                "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval';"
+                " style-src 'self' 'unsafe-inline'"
                 if is_development
                 else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
             ),
@@ -164,9 +164,9 @@ X-API-Key: your-api-key-here
         # Add request logging middleware
         @app.middleware("http")
         async def log_requests(request: Request, call_next):
-            start_time = datetime.now(tz=timezone.utc)
+            start_time = datetime.now(tz=UTC)
             response = await call_next(request)
-            duration = (datetime.now(tz=timezone.utc) - start_time).total_seconds()
+            duration = (datetime.now(tz=UTC) - start_time).total_seconds()
 
             logger.info(
                 "Request completed",
@@ -235,7 +235,7 @@ X-API-Key: your-api-key-here
             """Simple health check endpoint."""
             return {
                 "status": "healthy",
-                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                "timestamp": datetime.now(tz=UTC).isoformat(),
                 "service": "code-atlas-api",
             }
 
@@ -248,7 +248,7 @@ X-API-Key: your-api-key-here
                 process = psutil.Process()
 
                 return {
-                    "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                    "timestamp": datetime.now(tz=UTC).isoformat(),
                     "service": "code-atlas-api",
                     "version": "1.0.0",
                     "metrics_enabled": self.settings.enable_metrics,

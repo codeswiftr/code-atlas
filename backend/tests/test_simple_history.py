@@ -1,7 +1,6 @@
 """Tests for SimpleHistory pattern tracking."""
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -22,7 +21,7 @@ class TestSimpleHistory:
         assert history.history_file.exists()
 
         # Verify file content
-        with open(history.history_file, "r") as f:
+        with open(history.history_file) as f:
             lines = f.readlines()
             assert len(lines) == 1
             record = json.loads(lines[0])
@@ -45,7 +44,7 @@ class TestSimpleHistory:
         assert rate == 0.0
 
         # Verify context was saved
-        with open(history.history_file, "r") as f:
+        with open(history.history_file) as f:
             record = json.loads(f.readline())
             assert record["context"]["error"] == "Connection timeout"
             assert record["context"]["retry_count"] == 3
@@ -227,14 +226,14 @@ class TestSimpleHistory:
         history.record("code-atlas", "sessions", "extract", True)
 
         # Read file content
-        with open(history.history_file, "r") as f:
+        with open(history.history_file) as f:
             first_content = f.read()
 
         # Write second record
         history.record("code-atlas", "sessions", "extract", False)
 
         # Read file content again
-        with open(history.history_file, "r") as f:
+        with open(history.history_file) as f:
             second_content = f.read()
 
         # First content should be preserved
@@ -262,7 +261,7 @@ class TestSimpleHistory:
         """Verify timestamp is ISO 8601 UTC format."""
         history.record("code-atlas", "sessions", "extract", True)
 
-        with open(history.history_file, "r") as f:
+        with open(history.history_file) as f:
             record = json.loads(f.readline())
 
         timestamp = record["timestamp"]

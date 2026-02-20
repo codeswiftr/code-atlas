@@ -5,11 +5,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from code_atlas.rag_service import (
-    RAGService,
-    DEFAULT_RAG_MODEL,
     DEFAULT_MAX_TOKENS,
+    DEFAULT_RAG_MODEL,
     HAIKU_INPUT_COST,
     HAIKU_OUTPUT_COST,
+    RAGService,
 )
 
 
@@ -40,7 +40,10 @@ class MockGraphPopulator:
         if "entity_id" in params:
             return [
                 {
-                    "e": {"id": params["entity_id"], "name": "TestEntity", "description": "A test entity"},
+                    "e": {
+                        "id": params["entity_id"], "name": "TestEntity",
+                        "description": "A test entity",
+                    },
                     "labels": ["Concept"],
                     "relationships": [],
                 }

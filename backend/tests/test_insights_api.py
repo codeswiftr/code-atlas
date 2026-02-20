@@ -1,5 +1,8 @@
 """Tests for Insights API endpoints."""
 
+import tempfile
+from datetime import UTC
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -7,8 +10,6 @@ from fastapi.testclient import TestClient
 
 from code_atlas.api.main import create_app
 from code_atlas.config import AtlasSettings
-from pathlib import Path
-import tempfile
 
 
 @pytest.fixture
@@ -148,7 +149,9 @@ class TestRecurringProblems:
         ]
         mock_graph.execute_query.return_value = mock_result
 
-        response = client_with_mock_graph.get("/api/v1/insights/recurring-problems?min_sessions=2&limit=20")
+        response = client_with_mock_graph.get(
+            "/api/v1/insights/recurring-problems?min_sessions=2&limit=20"
+        )
         
         assert response.status_code == 200
         data = response.json()
@@ -324,10 +327,10 @@ class TestTrends:
 
     def test_trends_success(self, client_with_mock_graph, mock_graph):
         """Test trends endpoint returns correct data."""
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta
         
         # Mock result with ISO format date strings that will be parsed correctly
-        today = datetime.now(timezone.utc)
+        today = datetime.now(UTC)
         yesterday = today - timedelta(days=1)
         
         mock_result = [
@@ -402,7 +405,10 @@ class TestInsightReport:
             elif "Problem" in query:
                 return [
                     {
-                        "p": {"id": "problem1", "name": "Recurring Issue", "source_session": "session1"},
+                        "p": {
+                            "id": "problem1", "name": "Recurring Issue",
+                            "source_session": "session1",
+                        },
                         "session_count": 5,
                         "labels": ["Problem"],
                     },
@@ -454,5 +460,6 @@ class TestInsightReport:
         response = client_with_mock_graph.get("/api/v1/insights/reports")
         
         assert response.status_code == 500
-        assert "Failed to generate" in response.json()["detail"] or "Failed to generate insight report" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert "Failed to generate" in detail or "Failed to generate insight report" in detail
 

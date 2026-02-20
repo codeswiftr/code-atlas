@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -23,7 +23,7 @@ def sample_job() -> ProcessingJob:
     return ProcessingJob(
         job_id="job-test123",
         status=JobStatus.PENDING,
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=datetime.now(tz=UTC),
         total_sessions=5,
         processed_sessions=0,
         failed_sessions=0,
@@ -50,7 +50,7 @@ def test_job_store_list_with_status_filter(job_store: JobStore) -> None:
         job = ProcessingJob(
             job_id=f"job-{i}",
             status=status,
-            created_at=datetime.now(tz=timezone.utc),
+            created_at=datetime.now(tz=UTC),
             total_sessions=1,
             processed_sessions=0,
             failed_sessions=0,
@@ -79,7 +79,7 @@ def test_job_store_update_status_atomic(job_store: JobStore, sample_job: Process
     result = job_store.update_status(
         sample_job.job_id,
         JobStatus.RUNNING,
-        started_at=datetime.now(tz=timezone.utc),
+        started_at=datetime.now(tz=UTC),
     )
     assert result is True
 
@@ -92,7 +92,7 @@ def test_job_store_update_status_atomic(job_store: JobStore, sample_job: Process
 
 def test_job_store_cleanup_old_jobs(job_store: JobStore) -> None:
     """Expired jobs removed, recent kept."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     # Create old completed job
     old_job = ProcessingJob(
@@ -148,7 +148,7 @@ def test_job_store_serializes_stats_dict(job_store: JobStore) -> None:
     job = ProcessingJob(
         job_id="job-stats",
         status=JobStatus.COMPLETED,
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=datetime.now(tz=UTC),
         total_sessions=5,
         processed_sessions=4,
         failed_sessions=1,
@@ -179,7 +179,7 @@ def test_job_store_update_nonexistent_returns_false(job_store: JobStore) -> None
 
 def test_job_store_list_ordered_by_created_at(job_store: JobStore) -> None:
     """Jobs are listed in descending order by creation time."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     for i in range(3):
         job = ProcessingJob(
@@ -208,7 +208,7 @@ def test_job_store_persists_to_file(tmp_path: Path) -> None:
     job = ProcessingJob(
         job_id="job-persist",
         status=JobStatus.PENDING,
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=datetime.now(tz=UTC),
         total_sessions=3,
         processed_sessions=0,
         failed_sessions=0,
@@ -239,7 +239,7 @@ def test_job_store_global_singleton() -> None:
 
 def test_job_store_full_lifecycle(job_store: JobStore) -> None:
     """Test complete job lifecycle: create -> start -> progress -> complete."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     # Create job
     job = ProcessingJob(

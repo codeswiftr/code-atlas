@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 import redis
 
 from code_atlas.graph_populator import GraphPopulator
 from code_atlas.insight_extractor import Entity, ExtractionResult, Relationship
-from code_atlas.models import ParsedSession, SessionMetadata, SessionMessage
+from code_atlas.models import ParsedSession, SessionMessage, SessionMetadata
 
 
 def test_graph_populator_indexes_defined() -> None:
@@ -36,7 +36,9 @@ def test_graph_populator_indexes_defined() -> None:
 
     # Check Full-text index exists (FalkorDB uses CALL procedure syntax)
     fulltext_indexes = " ".join(indexes["FullText"])
-    assert "fulltext.createNodeIndex" in fulltext_indexes, "Missing full-text index for entity names"
+    assert "fulltext.createNodeIndex" in fulltext_indexes, (
+        "Missing full-text index for entity names"
+    )
 
 
 def test_graph_populator_list_indexes() -> None:
@@ -72,7 +74,7 @@ def test_graph_populator_dry_run_no_index_creation() -> None:
         session_id="sess-dry-run",
         project="test",
         size_bytes=10,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     session = ParsedSession(
         metadata=metadata,
@@ -90,7 +92,9 @@ def test_graph_populator_dry_run_no_index_creation() -> None:
     # Should have executed queries for the session but no index creation
     assert len(populator.executed_queries) >= 1
     # No index creation queries should be present
-    index_queries = [q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q]
+    index_queries = [
+        q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q
+    ]
     assert len(index_queries) == 0
 
 
@@ -103,7 +107,7 @@ def test_graph_populator_with_indexes_disabled() -> None:
         session_id="sess-no-indexes",
         project="test",
         size_bytes=10,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     session = ParsedSession(
         metadata=metadata,
@@ -120,7 +124,9 @@ def test_graph_populator_with_indexes_disabled() -> None:
 
     # Should have executed queries for the session but no index creation
     assert len(populator.executed_queries) >= 1
-    index_queries = [q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q]
+    index_queries = [
+        q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q
+    ]
     assert len(index_queries) == 0
 
 
@@ -197,7 +203,9 @@ def test_graph_populator_creates_indexes_on_initialization(
     )
 
     # Check that index creation queries were executed
-    index_queries = [q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q]
+    index_queries = [
+        q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q
+    ]
     assert len(index_queries) > 0, "No index creation queries were executed"
 
     # Verify that the populator has a client
@@ -209,7 +217,7 @@ def test_graph_populator_creates_indexes_on_initialization(
         session_id="test-sess-index",
         project="test_project",
         size_bytes=1024,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     session = ParsedSession(
         metadata=metadata,
@@ -270,7 +278,9 @@ def test_graph_populator_drop_indexes(
     assert len(drop_queries) > 0, "No DROP INDEX queries were executed"
 
     total_queries = len(populator.executed_queries)
-    assert total_queries > initial_queries, "No additional queries were executed for dropping indexes"
+    assert total_queries > initial_queries, (
+        "No additional queries were executed for dropping indexes"
+    )
 
 
 @pytest.mark.integration
@@ -291,7 +301,9 @@ def test_graph_populator_verify_indexes_functionality(
     # Verification should have been called during initialization
     # Check that verification queries were executed
     verification_queries = [q for q in populator.executed_queries if q.strip().startswith("MATCH")]
-    assert len(verification_queries) >= 4, "Expected at least 4 verification queries for each entity type"
+    assert len(verification_queries) >= 4, (
+        "Expected at least 4 verification queries for each entity type"
+    )
 
     # Test manual verification
     result = populator.verify_indexes()
@@ -337,7 +349,7 @@ def test_performance_with_indexes(
             session_id=f"test-sess-{i:03d}",
             project=f"project_{i % 2}",  # 2 different projects
             size_bytes=1024 * (i + 1),
-            modified_at=datetime.now(tz=timezone.utc).timestamp() - i * 3600,
+            modified_at=datetime.now(tz=UTC).timestamp() - i * 3600,
         )
         session = ParsedSession(
             metadata=metadata,

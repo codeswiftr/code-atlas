@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-from typing import Dict
 
 from fastapi import WebSocket, WebSocketDisconnect
-from .logging_config import get_logger
+
 from .job_store import get_job_store
+from .logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -16,7 +16,7 @@ class ConnectionManager:
     """Manages WebSocket connections for real-time updates."""
 
     def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
+        self.active_connections: dict[str, WebSocket] = {}
         self.job_store = get_job_store()
 
     async def connect(self, websocket: WebSocket, job_id: str) -> None:

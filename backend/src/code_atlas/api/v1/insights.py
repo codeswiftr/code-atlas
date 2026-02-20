@@ -1,16 +1,20 @@
 """Insights and reports API endpoints."""
 
+import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from anthropic import Anthropic
 from fastapi import APIRouter, HTTPException, Query, status
 
 from ...logging_config import get_logger
-from ..dependencies import Graph, ApiKey
 from ...schemas.graph import (
     EntityType,
+    RAGQueryRequest,
+    RAGQueryResponse,
 )
+from ..dependencies import ApiKey, Graph
 from .graph import _parse_node_to_entity
 
 logger = get_logger(__name__)
@@ -22,7 +26,7 @@ async def get_top_entities(
     graph: Graph,
     api_key: ApiKey,
     limit: int = Query(default=10, ge=1, le=100),
-    entity_type: EntityType | None = Query(default=None, alias="type"),
+    entity_type: EntityType | None = Query(default=None, alias="type"),  # noqa: B008
 ) -> dict[str, Any]:
     """Get most mentioned entities."""
     try:
@@ -71,7 +75,7 @@ async def get_top_entities(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get top entities: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get("/recurring-problems")
@@ -99,7 +103,6 @@ async def get_recurring_problems(
         problems = []
         for row in result:
             node = row.get("p", {})
-            labels = row.get("labels", ["Problem"])
             entity = _parse_node_to_entity(node, "Problem")
             entity.mention_count = row.get("session_count", 0)
             problems.append({
@@ -121,7 +124,7 @@ async def get_recurring_problems(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get recurring problems: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get("/popular-tools")
@@ -147,7 +150,6 @@ async def get_popular_tools(
         tools = []
         for row in result:
             node = row.get("t", {})
-            labels = row.get("labels", ["Tool"])
             entity = _parse_node_to_entity(node, "Tool")
             entity.mention_count = row.get("usage_count", 0)
             tools.append({
@@ -168,7 +170,7 @@ async def get_popular_tools(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get popular tools: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get("/concept-relationships")
@@ -203,7 +205,8 @@ async def get_concept_relationships(
             WITH a, b, count(r) as connection_strength
             ORDER BY connection_strength DESC
             LIMIT 20
-            RETURN a.name as source, b.name as target, connection_strength, labels(a) as source_labels, labels(b) as target_labels
+            RETURN a.name as source, b.name as target, connection_strength,
+                   labels(a) as source_labels, labels(b) as target_labels
         """
         
         pair_result = graph.execute_query(pair_query, {})
@@ -230,7 +233,7 @@ async def get_concept_relationships(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get concept relationships: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get("/trends")
@@ -259,7 +262,7 @@ async def get_trends(
         trends_by_date: dict[str, dict[str, int]] = {}
         trends_by_type: dict[str, list[dict[str, Any]]] = {}
         
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=days)
         
         for row in result:
             created_date_str = row.get("created_date", "")
@@ -279,7 +282,9 @@ async def get_trends(
             
             if date_key not in trends_by_date:
                 trends_by_date[date_key] = {}
-            trends_by_date[date_key][entity_type] = trends_by_date[date_key].get(entity_type, 0) + count
+            trends_by_date[date_key][entity_type] = (
+                trends_by_date[date_key].get(entity_type, 0) + count
+            )
             
             if entity_type not in trends_by_type:
                 trends_by_type[entity_type] = []
@@ -315,7 +320,7 @@ async def get_trends(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get trends: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get("/reports")
@@ -395,7 +400,7 @@ async def get_insight_report(
             "top_entities": top_entities,
             "recurring_problems": recurring_problems,
             "popular_tools": popular_tools,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "execution_time_ms": execution_time,
             "message": "Insight report generated",
         }
@@ -404,15 +409,10 @@ async def get_insight_report(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate report: {str(exc)}",
-        )
+        ) from exc
 
 
 # RAG endpoint - create new router file or add here
-import os
-
-from anthropic import Anthropic
-
-from ...schemas.graph import RAGQueryRequest, RAGQueryResponse
 
 
 def _get_anthropic_client() -> Anthropic | None:
@@ -432,7 +432,10 @@ def _get_anthropic_client() -> Anthropic | None:
     "/rag/query",
     response_model=RAGQueryResponse,
     summary="RAG question answering",
-    description="Answer natural language questions using retrieval-augmented generation over the knowledge graph.",
+    description=(
+        "Answer natural language questions using retrieval-augmented generation"
+        " over the knowledge graph."
+    ),
 )
 async def rag_query(
     request: RAGQueryRequest,
@@ -483,5 +486,5 @@ async def rag_query(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"RAG query failed: {str(exc)}",
-        )
+        ) from exc
 

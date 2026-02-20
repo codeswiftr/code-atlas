@@ -6,9 +6,8 @@ Adapted from FORGE harness SimpleHistory for code-atlas CLI.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 
 class SimpleHistory:
@@ -19,12 +18,13 @@ class SimpleHistory:
     Thread-safe through append-only writes. No external dependencies.
     """
 
-    def __init__(self, history_file: Optional[Path] = None):
+    def __init__(self, history_file: Path | None = None):
         """
         Initialize history tracker.
 
         Args:
-            history_file: Path to JSONL history file. Defaults to .forge/state/code_atlas_history.jsonl
+            history_file: Path to JSONL history file.
+                Defaults to .forge/state/code_atlas_history.jsonl
         """
         if history_file is None:
             self.history_file = Path.cwd() / ".forge" / "state" / "code_atlas_history.jsonl"
@@ -44,7 +44,7 @@ class SimpleHistory:
         project: str,
         action: str,
         success: bool,
-        context: Optional[dict] = None
+        context: dict | None = None
     ) -> None:
         """
         Record an action outcome.
@@ -57,7 +57,7 @@ class SimpleHistory:
             context: Optional context data (error message, duration, entity count, etc.)
         """
         record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "domain": domain,
             "project": project,
             "action": action,
@@ -147,7 +147,7 @@ class SimpleHistory:
         matching = []
 
         # Read file in reverse for most recent records
-        with open(self.history_file, "r") as f:
+        with open(self.history_file) as f:
             lines = f.readlines()
 
         for line in reversed(lines):

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -70,7 +69,7 @@ class TestTOMLLoading:
         config_file = tmp_path / "bad.toml"
         config_file.write_text(invalid_toml)
 
-        with pytest.raises(Exception):  # tomllib.TOMLDecodeError
+        with pytest.raises(Exception, match="."):  # tomllib.TOMLDecodeError
             AtlasSettings.from_toml(config_file)
 
     def test_partial_toml(self, tmp_path: Path) -> None:
@@ -109,7 +108,9 @@ claude_root = "~/my-projects"
 class TestEnvironmentOverrides:
     """Test environment variable overrides of TOML."""
 
-    def test_env_overrides_toml(self, sample_toml: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_env_overrides_toml(
+        self, sample_toml: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that environment variables override TOML values."""
         config_file = tmp_path / "test.toml"
         config_file.write_text(sample_toml)
@@ -169,7 +170,7 @@ max_session_size_mb = -10
         config_file = tmp_path / "bad.toml"
         config_file.write_text(bad_toml)
 
-        with pytest.raises(Exception):  # Pydantic validation error
+        with pytest.raises(Exception, match="."):  # Pydantic validation error
             AtlasSettings.from_toml(config_file)
 
     def test_zero_values_allowed(self, tmp_path: Path) -> None:

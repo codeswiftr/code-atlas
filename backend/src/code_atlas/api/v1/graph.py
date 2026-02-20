@@ -7,26 +7,26 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, status
 
 from ...logging_config import get_logger
-from ..dependencies import Graph, ApiKey
 from ...schemas.graph import (
-    EntityType,
-    RelationshipType,
-    EntityResponse,
+    EdgeData,
     EntityListResponse,
+    EntityResponse,
     EntitySearchResponse,
     EntitySearchResult,
-    RelationshipResponse,
-    RelationshipListResponse,
+    EntityType,
     GraphQueryRequest,
     GraphQueryResponse,
-    GraphVisualizationResponse,
-    NodeData,
-    EdgeData,
     GraphStatsResponse,
+    GraphVisualizationResponse,
     HybridSearchRequest,
     HybridSearchResponse,
     HybridSearchResultItem,
+    NodeData,
+    RelationshipListResponse,
+    RelationshipResponse,
+    RelationshipType,
 )
+from ..dependencies import ApiKey, Graph
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/graph", tags=["Knowledge Graph"])
@@ -63,7 +63,11 @@ def _parse_node_to_entity(node: dict[str, Any], node_type: str) -> EntityRespons
 
     return EntityResponse(
         id=str(entity_id),
-        type=EntityType(node_type) if node_type in EntityType.__members__.values() else EntityType.CONCEPT,
+        type=(
+            EntityType(node_type)
+            if node_type in EntityType.__members__.values()
+            else EntityType.CONCEPT
+        ),
         name=str(name),
         properties=properties,
         confidence=float(confidence) if confidence else None,
@@ -160,7 +164,10 @@ async def list_entities(
         skip = (page - 1) * page_size
         params["skip"] = skip
         params["limit"] = page_size
-        data_query = f"{base_query}{where_str} RETURN e, labels(e) as labels ORDER BY e.name SKIP $skip LIMIT $limit"
+        data_query = (
+            f"{base_query}{where_str}"
+            " RETURN e, labels(e) as labels ORDER BY e.name SKIP $skip LIMIT $limit"
+        )
 
         # Execute queries
         count_result = graph.execute_query(count_query, params)
@@ -188,7 +195,7 @@ async def list_entities(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list entities: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get(
@@ -295,7 +302,7 @@ async def search_entities(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to search entities: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.post(
@@ -366,7 +373,7 @@ async def hybrid_search(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Hybrid search failed: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get(
@@ -405,7 +412,7 @@ async def get_entity(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get entity: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get(
@@ -461,7 +468,8 @@ async def list_relationships(
         params["limit"] = page_size
         data_query = f"""
             {base_query}{where_str}
-            RETURN r, type(r) as rel_type, s, t, labels(s) as source_labels, labels(t) as target_labels
+            RETURN r, type(r) as rel_type, s, t,
+                   labels(s) as source_labels, labels(t) as target_labels
             SKIP $skip LIMIT $limit
         """
 
@@ -482,13 +490,21 @@ async def list_relationships(
             relationships.append(
                 RelationshipResponse(
                     id=f"rel-{hash(str(rel))}",
-                    type=RelationshipType(rel_type_str) if rel_type_str in RelationshipType.__members__.values() else RelationshipType.RELATED_TO,
+                    type=(
+                        RelationshipType(rel_type_str)
+                        if rel_type_str in RelationshipType.__members__.values()
+                        else RelationshipType.RELATED_TO
+                    ),
                     source_id=source.get("id", ""),
                     source_name=source.get("name", ""),
-                    source_type=EntityType(source_labels[0]) if source_labels else EntityType.CONCEPT,
+                    source_type=(
+                        EntityType(source_labels[0]) if source_labels else EntityType.CONCEPT
+                    ),
                     target_id=target.get("id", ""),
                     target_name=target.get("name", ""),
-                    target_type=EntityType(target_labels[0]) if target_labels else EntityType.CONCEPT,
+                    target_type=(
+                        EntityType(target_labels[0]) if target_labels else EntityType.CONCEPT
+                    ),
                     properties=dict(rel),
                     confidence=rel.get("confidence"),
                     created_at=rel.get("created_at"),
@@ -508,7 +524,7 @@ async def list_relationships(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list relationships: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.post(
@@ -565,7 +581,7 @@ async def execute_query(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Query failed: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get(
@@ -578,7 +594,9 @@ async def get_visualization(
     graph: Graph,
     api_key: ApiKey,
     entity_type: Annotated[EntityType | None, Query(alias="type")] = None,
-    center_entity_id: str | None = Query(default=None, description="Center visualization on this entity"),
+    center_entity_id: str | None = Query(
+        default=None, description="Center visualization on this entity"
+    ),
     depth: int = Query(default=2, ge=1, le=5, description="Traversal depth from center entity"),
     max_nodes: int = Query(default=100, ge=1, le=500),
 ) -> GraphVisualizationResponse:
@@ -635,7 +653,9 @@ async def get_visualization(
 
                     if node_id not in seen_nodes:
                         seen_nodes.add(node_id)
-                        labels_key = f"{node_key}_labels" if f"{node_key}_labels" in row else "labels"
+                        labels_key = (
+                            f"{node_key}_labels" if f"{node_key}_labels" in row else "labels"
+                        )
                         labels = row.get(labels_key, ["Concept"])
                         node_type_str = labels[0] if labels else "Concept"
 
@@ -707,7 +727,7 @@ async def get_visualization(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get visualization: {str(exc)}",
-        )
+        ) from exc
 
 
 @router.get(
@@ -777,4 +797,4 @@ async def get_stats(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get stats: {str(exc)}",
-        )
+        ) from exc

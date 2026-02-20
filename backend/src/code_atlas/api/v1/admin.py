@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -172,7 +172,7 @@ async def get_key_usage(
     # For now, return placeholder based on last_used_at
     requests_today = 0
     if record.last_used_at:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         if (now - record.last_used_at) < timedelta(days=1):
             # Estimate based on recent activity
             requests_today = min(record.request_count, 1000)

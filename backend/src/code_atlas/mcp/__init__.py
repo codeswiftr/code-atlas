@@ -3,8 +3,8 @@
 Enables Code Atlas to be accessed from Claude Desktop and other MCP clients.
 """
 
-from .server import MCPServer
 from .resources import ResourceManager
+from .server import MCPServer
 from .tools import ToolManager
 
 __all__ = ["MCPServer", "ResourceManager", "ToolManager"]

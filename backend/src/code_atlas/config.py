@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 # Python 3.11+ includes tomllib (required version)
-import tomllib
 
 
 class Environment(str, Enum):

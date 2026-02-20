@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -77,7 +77,7 @@ class TestAPIKeyManager:
 
         # Manually expire the key
         conn = key_manager._get_connection()
-        past_date = (datetime.now(tz=timezone.utc) - timedelta(days=1)).isoformat()
+        past_date = (datetime.now(tz=UTC) - timedelta(days=1)).isoformat()
         conn.execute(
             "UPDATE api_keys SET expires_at = ? WHERE key_id = ?",
             (past_date, record.key_id),

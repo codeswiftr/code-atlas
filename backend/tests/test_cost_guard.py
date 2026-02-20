@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -11,7 +11,7 @@ import pytest
 from code_atlas.config import AtlasSettings
 from code_atlas.exceptions import CostLimitExceeded
 from code_atlas.insight_extractor import CostGuard, InsightExtractor
-from code_atlas.models import ParsedSession, SessionMetadata, SessionMessage
+from code_atlas.models import ParsedSession, SessionMessage, SessionMetadata
 from code_atlas.pipeline import PipelineRunner
 from code_atlas.session_discovery import SessionDiscovery
 
@@ -23,7 +23,7 @@ def make_session(session_id: str = "sess-123", message_count: int = 1) -> Parsed
         session_id=session_id,
         project="test-project",
         size_bytes=1024,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     messages = [
         SessionMessage(

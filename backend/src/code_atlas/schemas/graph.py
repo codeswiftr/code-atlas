@@ -390,11 +390,17 @@ class HybridSearchRequest(BaseModel):
     """Request for hybrid search combining graph and vector search."""
 
     query: str = Field(..., min_length=1, max_length=500, description="Search query")
-    entity_type: EntityType | None = Field(default=None, alias="type", description="Filter by entity type")
+    entity_type: EntityType | None = Field(
+        default=None, alias="type", description="Filter by entity type"
+    )
     limit: int = Field(default=20, ge=1, le=100, description="Maximum results")
     min_score: float = Field(default=0.0, ge=0.0, le=1.0, description="Minimum combined score")
-    graph_weight: float = Field(default=0.4, ge=0.0, le=1.0, description="Weight for graph structure scores")
-    vector_weight: float = Field(default=0.6, ge=0.0, le=1.0, description="Weight for vector similarity scores")
+    graph_weight: float = Field(
+        default=0.4, ge=0.0, le=1.0, description="Weight for graph structure scores"
+    )
+    vector_weight: float = Field(
+        default=0.6, ge=0.0, le=1.0, description="Weight for vector similarity scores"
+    )
     use_graph_structure: bool = Field(default=True, description="Include graph structure in search")
     use_vector_search: bool = Field(default=True, description="Include vector similarity in search")
 
@@ -424,8 +430,12 @@ class RAGQueryRequest(BaseModel):
     """Request for RAG question answering."""
 
     question: str = Field(..., min_length=1, max_length=1000, description="Question to answer")
-    entity_type: EntityType | None = Field(default=None, alias="type", description="Filter context by entity type")
-    context_limit: int = Field(default=5, ge=1, le=20, description="Maximum entities to use as context")
+    entity_type: EntityType | None = Field(
+        default=None, alias="type", description="Filter context by entity type"
+    )
+    context_limit: int = Field(
+        default=5, ge=1, le=20, description="Maximum entities to use as context"
+    )
     include_sources: bool = Field(default=True, description="Include source entity citations")
 
 
@@ -435,7 +445,9 @@ class RAGQueryResponse(BaseResponse):
     answer: str = Field(..., description="Generated answer to the question")
     sources: list[str] = Field(default_factory=list, description="Entity IDs used as context")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the answer")
-    context_entities: list[dict[str, Any]] = Field(default_factory=list, description="Entities used as context")
+    context_entities: list[dict[str, Any]] = Field(
+        default_factory=list, description="Entities used as context"
+    )
     search_results_count: int = Field(..., description="Number of entities found in search")
     execution_time_ms: float = Field(..., description="Time taken to generate answer")
 

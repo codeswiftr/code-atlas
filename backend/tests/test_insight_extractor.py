@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
 import pytest
@@ -14,11 +14,10 @@ from code_atlas.insight_extractor import (
     CLAUDE_SONNET_INPUT_COST,
     CLAUDE_SONNET_OUTPUT_COST,
     Entity,
-    ExtractionResult,
     InsightExtractor,
     Relationship,
 )
-from code_atlas.models import ParsedSession, SessionMetadata, SessionMessage
+from code_atlas.models import ParsedSession, SessionMessage, SessionMetadata
 
 
 def make_session() -> ParsedSession:
@@ -27,7 +26,7 @@ def make_session() -> ParsedSession:
         session_id="sess-123",
         project="alpha",
         size_bytes=1024,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
     messages = [
         SessionMessage(
@@ -282,10 +281,10 @@ def test_extraction_provenance_metadata() -> None:
     assert result.extraction_method == "heuristic"
 
     # Verify timestamp is recent (within last minute)
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     extracted_time = datetime.fromisoformat(result.extracted_at)
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     time_diff = (now - extracted_time).total_seconds()
 
     assert time_diff < 60  # Extracted within last minute
@@ -331,7 +330,10 @@ def test_openrouter_extraction(mock_completion: Mock) -> None:
     # Mock LiteLLM response
     mock_response = Mock()
     mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = '{"entities": [{"type": "file", "name": "test.py", "confidence": 0.9}], "relationships": [], "insights": ["test"]}'
+    mock_response.choices[0].message.content = (
+        '{"entities": [{"type": "file", "name": "test.py", "confidence": 0.9}],'
+        ' "relationships": [], "insights": ["test"]}'
+    )
     mock_response.usage = Mock()
     mock_response.usage.prompt_tokens = 100
     mock_response.usage.completion_tokens = 50
@@ -368,7 +370,9 @@ def test_openrouter_cost_calculation(mock_cost: Mock, mock_completion: Mock) -> 
     # Mock LiteLLM response
     mock_response = Mock()
     mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = '{"entities": [], "relationships": [], "insights": []}'
+    mock_response.choices[0].message.content = (
+        '{"entities": [], "relationships": [], "insights": []}'
+    )
     mock_response.usage = Mock()
     mock_response.usage.prompt_tokens = 100
     mock_response.usage.completion_tokens = 50
@@ -455,4 +459,7 @@ def test_openrouter_real_api() -> None:
 
     # Print result for visibility
     method = "LLM" if result.extraction_method == "llm" else "heuristic (LLM fallback)"
-    print(f"\n✅ OpenRouter API test completed via {method}. Cost: ${result.estimated_cost_usd:.6f}")
+    print(  # noqa: T201
+        f"\n OpenRouter API test completed via {method}."
+        f" Cost: ${result.estimated_cost_usd:.6f}"
+    )

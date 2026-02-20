@@ -10,11 +10,9 @@ Tests cover:
 """
 
 from typing import Any
-from unittest.mock import Mock, patch
 
 import pytest
 
-from code_atlas.embeddings import EmbeddingGenerator
 from code_atlas.vector_store import (
     ExternalVectorStore,
     FalkorDBVectorStore,
@@ -164,7 +162,7 @@ class TestDocumentEmbeddingAndIndexing:
         assert retrieved is not None
         assert len(retrieved) == len(original_embedding)
         # Check values are close (accounting for string conversion)
-        for orig, retr in zip(original_embedding, retrieved):
+        for orig, retr in zip(original_embedding, retrieved, strict=False):
             assert abs(orig - retr) < 0.0001
 
     def test_retrieve_nonexistent_embedding(self):

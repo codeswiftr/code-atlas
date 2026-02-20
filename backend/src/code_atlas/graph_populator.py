@@ -323,7 +323,7 @@ class GraphPopulator:
 
                 # Type 1 = Node
                 if type_code == 1 and isinstance(data, (list, tuple)) and len(data) >= 3:
-                    node_id, labels, props = data[0], data[1], data[2]
+                    _, _, props = data[0], data[1], data[2]
                     result = {}
                     if isinstance(props, (list, tuple)):
                         for prop in props:
@@ -350,7 +350,9 @@ class GraphPopulator:
         if self.client:
             # Time the query execution
             context_manager = (
-                self.metrics.time_db_query("execute") if self.metrics else self._null_context_manager()
+                self.metrics.time_db_query("execute")
+                if self.metrics
+                else self._null_context_manager()
             )
 
             with context_manager:
@@ -462,9 +464,9 @@ class GraphPopulator:
                     # Try to query index status
                     try:
                         # FalkorDB doesn't have a direct index status query
-                        # We'll consider the index as existing if we can run a query that would use it
-                        test_query = f"SHOW INDEXES"
-                        verification_result = self.client.execute_command(
+                        # We'll consider the index as existing if we can run a query that uses it
+                        test_query = "SHOW INDEXES"
+                        self.client.execute_command(
                             "GRAPH.QUERY", self.graph_name, test_query
                         )
                         # For now, assume index exists if no error occurred
@@ -501,7 +503,11 @@ class GraphPopulator:
                         drop_query = index_query.replace("CREATE INDEX ON", "DROP INDEX ON")
                         index_identifier = index_query.split("ON")[1].strip()
                         self._execute(drop_query)
-                        logger.debug("Index dropped successfully", category=category, index=index_identifier)
+                        logger.debug(
+                            "Index dropped successfully",
+                            category=category,
+                            index=index_identifier,
+                        )
                     elif "CALL db.idx.fulltext.createNodeIndex" in index_query:
                         # Full-text indexes: CALL db.idx.fulltext.drop('Label')
                         # Extract label from createNodeIndex('Label', 'property')
@@ -541,7 +547,7 @@ class GraphPopulator:
             for test_query in test_queries:
                 try:
                     self.executed_queries.append(test_query)
-                    result = self.client.execute_command("GRAPH.QUERY", self.graph_name, test_query)
+                    self.client.execute_command("GRAPH.QUERY", self.graph_name, test_query)
                     logger.debug("Index verification query successful", query=test_query)
                 except redis.RedisError as exc:
                     logger.warning(

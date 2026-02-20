@@ -142,7 +142,9 @@ class ResourceManager:
         query = """
             MATCH (s:Session {id: $session_id})
             OPTIONAL MATCH (s)-[r]-(e)
-            RETURN s, collect(DISTINCT {rel: type(r), entity: e.name, entity_type: labels(e)[0]}) as entities
+            RETURN s,
+                   collect(DISTINCT {rel: type(r), entity: e.name, entity_type: labels(e)[0]})
+                   as entities
             LIMIT 1
         """
         try:
@@ -171,7 +173,10 @@ class ResourceManager:
             MATCH (e {id: $entity_id})
             OPTIONAL MATCH (e)-[r]-(related)
             RETURN e, labels(e) as labels,
-                   collect(DISTINCT {rel: type(r), target: related.name, target_type: labels(related)[0]}) as relationships
+                   collect(DISTINCT {
+                       rel: type(r), target: related.name,
+                       target_type: labels(related)[0]
+                   }) as relationships
             LIMIT 1
         """
         try:

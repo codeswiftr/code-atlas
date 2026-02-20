@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from anthropic import Anthropic, APIError
+from anthropic import APIError
 
 from .hybrid_search import HybridSearch
 from .logging_config import get_logger
@@ -78,7 +78,10 @@ class RAGService:
 
             if not search_results:
                 return {
-                    "answer": "I couldn't find relevant information in the knowledge graph to answer this question.",
+                    "answer": (
+                        "I couldn't find relevant information in the knowledge graph"
+                        " to answer this question."
+                    ),
                     "sources": [],
                     "confidence": 0.0,
                     "context_entities": [],
@@ -137,7 +140,10 @@ class RAGService:
             MATCH (e {id: $entity_id})
             OPTIONAL MATCH (e)-[r]-(related)
             RETURN e, labels(e) as labels,
-                   collect(DISTINCT {rel_type: type(r), target: related.name, target_type: labels(related)[0]}) as relationships
+                   collect(DISTINCT {
+                       rel_type: type(r), target: related.name,
+                       target_type: labels(related)[0]
+                   }) as relationships
             LIMIT 1
         """
         try:
@@ -202,12 +208,16 @@ class RAGService:
 
 Question: {question}
 
-Based on the context provided, please answer the question. If the context doesn't contain enough information, say so.
+Based on the context provided, please answer the question.
+If the context doesn't contain enough information, say so.
 Be concise and cite specific entities when relevant."""
 
-        system_prompt = """You are a helpful assistant answering questions about a codebase knowledge graph.
-You have access to entities, relationships, and metadata extracted from coding sessions.
-Answer questions based solely on the provided context. Be accurate and concise."""
+        system_prompt = (
+            "You are a helpful assistant answering questions about a codebase knowledge graph."
+            " You have access to entities, relationships, and metadata extracted from coding"
+            " sessions. Answer questions based solely on the provided context."
+            " Be accurate and concise."
+        )
 
         try:
             logger.info("Generating RAG answer with LLM", model=DEFAULT_RAG_MODEL)
@@ -260,7 +270,10 @@ Answer questions based solely on the provided context. Be accurate and concise."
 
         # Build simple answer from entity names and types
         entity_names = [e.get("entity_name", "") for e in context_entities]
-        answer = f"Based on the knowledge graph, I found {len(context_entities)} relevant entities: {', '.join(entity_names[:5])}."
+        answer = (
+            f"Based on the knowledge graph, I found {len(context_entities)} relevant entities:"
+            f" {', '.join(entity_names[:5])}."
+        )
 
         if len(context_entities) > 5:
             answer += f" And {len(context_entities) - 5} more."
@@ -274,9 +287,12 @@ Answer questions based solely on the provided context. Be accurate and concise."
 
         # Simple extraction: mention entities found
         lines = context.split("\n\n")
-        entity_count = len([l for l in lines if l.startswith("Entity:")])
+        entity_count = len([line for line in lines if line.startswith("Entity:")])
 
-        return f"Based on the knowledge graph, I found {entity_count} relevant entities that might help answer your question. {context[:200]}..."
+        return (
+            f"Based on the knowledge graph, I found {entity_count} relevant entities"
+            f" that might help answer your question. {context[:200]}..."
+        )
 
     def _calculate_confidence(self, search_results: list[Any]) -> float:
         """Calculate confidence score based on search results."""

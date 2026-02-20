@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterator, Sequence
 
 from pathspec import PathSpec
 
@@ -135,7 +135,7 @@ class SessionDiscovery:
         session_id = path.stem
         rel_parts = path.relative_to(self.root).parts
         project = rel_parts[0] if rel_parts else "unknown"
-        modified_at = datetime.fromtimestamp(stats.st_mtime, tz=timezone.utc)
+        modified_at = datetime.fromtimestamp(stats.st_mtime, tz=UTC)
 
         return SessionMetadata(
             path=path,

@@ -1,7 +1,8 @@
 """Tests for MCP server integration."""
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 from code_atlas.mcp.server import MCP_AVAILABLE, MCPServer
 

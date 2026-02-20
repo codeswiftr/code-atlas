@@ -247,7 +247,7 @@ class TestAtlasMetrics:
             self.metrics._collect_system_metrics()
 
         # Set up stop event to trigger after first sleep
-        original_wait = threading.Event.wait
+        _original_wait = threading.Event.wait
 
         def patched_wait(self_event, timeout=None):
             # Set the stop event after first wait call to exit loop
@@ -365,10 +365,10 @@ class TestMetricsIntegration:
 
     def test_metrics_with_pipeline_runner(self) -> None:
         """Test metrics integration with PipelineRunner."""
+        from code_atlas.graph_populator import GraphPopulator
+        from code_atlas.insight_extractor import InsightExtractor
         from code_atlas.pipeline import PipelineRunner
         from code_atlas.session_discovery import SessionDiscovery
-        from code_atlas.insight_extractor import InsightExtractor
-        from code_atlas.graph_populator import GraphPopulator
 
         # Set up settings with metrics enabled
         settings = AtlasSettings(enable_metrics=True)

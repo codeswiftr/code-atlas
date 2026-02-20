@@ -219,7 +219,8 @@ class HybridSearch:
                 MATCH (e:{entity_type})
                 WHERE toLower(e.name) CONTAINS toLower($query)
                    OR e.description CONTAINS $query
-                RETURN e.id as entity_id, e.name as name, labels(e)[0] as type, e.mention_count as mentions
+                RETURN e.id as entity_id, e.name as name,
+                       labels(e)[0] as type, e.mention_count as mentions
                 ORDER BY e.mention_count DESC
                 LIMIT $limit
             """
@@ -228,7 +229,8 @@ class HybridSearch:
                 MATCH (e)
                 WHERE toLower(e.name) CONTAINS toLower($query)
                    OR e.description CONTAINS $query
-                RETURN e.id as entity_id, e.name as name, labels(e)[0] as type, e.mention_count as mentions
+                RETURN e.id as entity_id, e.name as name,
+                       labels(e)[0] as type, e.mention_count as mentions
                 ORDER BY e.mention_count DESC
                 LIMIT $limit
             """

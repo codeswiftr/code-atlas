@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from code_atlas.models import SessionMetadata
@@ -50,7 +50,7 @@ def test_parser_extracts_messages(tmp_path: Path) -> None:
         session_id="session",
         project="alpha",
         size_bytes=session_path.stat().st_size,
-        modified_at=datetime.now(tz=timezone.utc),
+        modified_at=datetime.now(tz=UTC),
     )
 
     parsed = SessionParser(metadata=metadata).parse()

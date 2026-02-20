@@ -10,7 +10,7 @@ import hashlib
 import hmac
 import secrets
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ..logging_config import get_logger
@@ -145,7 +145,7 @@ class APIKeyManager:
         key_hash = self._hash_key(raw_key)
         key_id = f"key_{secrets.token_hex(8)}"
 
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         expires_at = (
             now + timedelta(days=expires_in_days)
             if expires_in_days
@@ -232,7 +232,7 @@ class APIKeyManager:
             return None
 
         # Check expiration
-        if record.expires_at and record.expires_at < datetime.now(tz=timezone.utc):
+        if record.expires_at and record.expires_at < datetime.now(tz=UTC):
             logger.warning("Attempted use of expired key", key_id=record.key_id)
             return None
 
@@ -320,7 +320,7 @@ class APIKeyManager:
         Args:
             key_id: The key ID to record usage for.
         """
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         conn = self._get_connection()
         conn.execute(
             """

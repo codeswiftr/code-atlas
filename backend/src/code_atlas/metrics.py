@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-import psutil
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import ClassVar
 
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest, start_http_server
+import psutil
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+    start_http_server,
+)
 
 from .config import AtlasSettings
 from .logging_config import get_logger
@@ -46,7 +53,7 @@ class AtlasMetrics:
         self._init_metrics()
 
         # Track additional state
-        self.start_time = datetime.now(tz=timezone.utc)
+        self.start_time = datetime.now(tz=UTC)
         self.session_counts: dict[str, int] = {}
         self.error_counts: dict[str, int] = {}
 
@@ -377,7 +384,7 @@ class AtlasMetrics:
                         continue
 
                 # Process uptime
-                uptime = (datetime.now(tz=timezone.utc) - self.start_time).total_seconds()
+                uptime = (datetime.now(tz=UTC) - self.start_time).total_seconds()
                 self.process_uptime_seconds.set(uptime)
 
             except Exception as exc:

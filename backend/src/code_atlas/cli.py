@@ -87,24 +87,31 @@ def output_success(result: dict[str, Any], start_time: float, json_mode: bool = 
 
 
 def output_error(
-    error_code: str, message: str, start_time: float | None = None, json_mode: bool = False
+    operation: str,
+    error_code: str,
+    message: str,
+    details: dict[str, Any] | None = None,
+    json_mode: bool = False,
 ) -> None:
     """Output error in FORGE standard format.
 
     Args:
+        operation: Command name (e.g. 'discover', 'index')
         error_code: Machine-readable error code
         message: Human-readable error message
-        start_time: Optional start time for duration tracking
+        details: Optional dict of additional error details
         json_mode: Whether to output JSON or human-readable format
     """
     if json_mode:
-        response = {
+        error_block: dict[str, Any] = {"code": error_code, "message": message}
+        if details:
+            error_block["details"] = details
+        response: dict[str, Any] = {
             "success": False,
-            "error": {"code": error_code, "message": message},
+            "operation": operation,
+            "error": error_block,
             "timestamp": datetime.now(UTC).isoformat(),
         }
-        if start_time:
-            response["duration_ms"] = int((time.time() - start_time) * 1000)
         output_json(response)
     else:
         console.print(f"[red]✗[/red] {message}")
@@ -118,14 +125,14 @@ def output_error(
 
 @app.command("discover")
 def discover_sessions(
-    config: Path | None = typer.Option(
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
-    root: Path | None = typer.Option(None, help="Override Claude projects root."),
-    include_project: list[str] = typer.Option(
+    root: Path | None = typer.Option(None, help="Override Claude projects root."),  # noqa: B008
+    include_project: list[str] = typer.Option(  # noqa: B008
         None, "--include-project", "-i", help="Project names to include."
     ),
-    exclude_project: list[str] = typer.Option(
+    exclude_project: list[str] = typer.Option(  # noqa: B008
         None, "--exclude-project", "-e", help="Project names to exclude."
     ),
     limit: int | None = typer.Option(None, help="Maximum number of sessions to list."),
@@ -192,10 +199,10 @@ def discover_sessions(
 
 @app.command("index")
 def index_sessions(
-    config: Path | None = typer.Option(
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
-    root: Path | None = typer.Option(None, help="Override Claude projects root."),
+    root: Path | None = typer.Option(None, help="Override Claude projects root."),  # noqa: B008
     limit: int | None = typer.Option(5, help="Limit number of sessions processed."),
     use_llm: bool = typer.Option(
         False, "--use-llm/--no-use-llm", help="Use LLM for extraction (Anthropic or OpenRouter)."
@@ -351,10 +358,10 @@ def index_sessions(
 
 @app.command("run")
 def run_pipeline(
-    config: Path | None = typer.Option(
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
-    root: Path | None = typer.Option(None, help="Override Claude projects root."),
+    root: Path | None = typer.Option(None, help="Override Claude projects root."),  # noqa: B008
     limit: int | None = typer.Option(5, help="Limit number of sessions processed."),
     use_llm: bool = typer.Option(
         False, "--use-llm/--no-use-llm", help="Use LLM for extraction (Anthropic or OpenRouter)."
@@ -398,8 +405,8 @@ def run_pipeline(
 
 @app.command("query")
 def query_graph(
-    question: str = typer.Argument(..., help="Question to ask the knowledge graph"),
-    config: Path | None = typer.Option(
+    question: str = typer.Argument(..., help="Question to ask the knowledge graph"),  # noqa: B008
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
     graph_url: str | None = typer.Option(None, "--graph-url", "-g", help="Redis/FalkorDB URL."),
@@ -504,20 +511,20 @@ def query_graph(
 
 @app.command("export")
 def export_data(
-    output: Path = typer.Option(
+    output: Path = typer.Option(  # noqa: B008
         Path("code-atlas-export.json"), "--output", "-o", help="Output file path"
     ),
-    format: str = typer.Option(
+    format: str = typer.Option(  # noqa: B008
         "json", "--format", "-f", help="Export format: json, cypher, or graphml"
     ),
-    config: Path | None = typer.Option(
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
-    graph_url: str | None = typer.Option(None, "--graph-url", "-g", help="Redis/FalkorDB URL"),
-    graph_name: str | None = typer.Option(
+    graph_url: str | None = typer.Option(None, "--graph-url", "-g", help="Redis/FalkorDB URL"),  # noqa: B008
+    graph_name: str | None = typer.Option(  # noqa: B008
         None, "--graph-name", "-n", help="Graph name in FalkorDB"
     ),
-    entity_type: list[str] = typer.Option(
+    entity_type: list[str] = typer.Option(  # noqa: B008
         None, "--entity-type", "-t", help="Entity types to export (can specify multiple)"
     ),
     limit: int | None = typer.Option(
@@ -663,7 +670,8 @@ def export_data(
                 prop_str = ", ".join(f"{k}: {json.dumps(v)}" for k, v in props.items())
 
                 lines.append(
-                    f"CREATE (:{label_str} {{id: {json.dumps(node_id)}{f', {prop_str}' if prop_str else ''}}})"
+                    f"CREATE (:{label_str} {{id: {json.dumps(node_id)}"
+                    f"{f', {prop_str}' if prop_str else ''}}})"
                 )
 
             lines.append("")
@@ -744,7 +752,7 @@ def export_data(
 
 @app.command("status")
 def show_status(
-    config: Path | None = typer.Option(
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
     graph_url: str | None = typer.Option(None, "--graph-url", "-g", help="Redis/FalkorDB URL"),
@@ -869,7 +877,7 @@ def show_status(
 
 @app.command("report")
 def generate_report(
-    config: Path | None = typer.Option(
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
     graph_name: str = typer.Option("code_atlas", help="Graph name in FalkorDB."),
@@ -1015,7 +1023,7 @@ def generate_report(
 
 @app.command("indexes")
 def manage_indexes(
-    config: Path | None = typer.Option(
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
     graph_name: str = typer.Option("code_atlas", help="Graph name in FalkorDB."),
@@ -1169,7 +1177,7 @@ def manage_indexes(
 
 @app.command("metrics")
 def start_metrics_server(
-    config: Path | None = typer.Option(
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
     host: str | None = typer.Option(None, "--host", help="Override metrics server host."),
@@ -1193,7 +1201,10 @@ def start_metrics_server(
             "METRICS_DISABLED",
             "Metrics collection is disabled in configuration.",
             {
-                "hint": "Set enable_metrics = true in .code-atlas.toml or CODE_ATLAS_ENABLE_METRICS=true"
+                "hint": (
+                    "Set enable_metrics = true in .code-atlas.toml"
+                    " or CODE_ATLAS_ENABLE_METRICS=true"
+                )
             },
             json_output,
         )
@@ -1251,7 +1262,7 @@ def start_metrics_server(
 
 @app.command("serve")
 def serve_api(
-    config: Path | None = typer.Option(
+    config: Path | None = typer.Option(  # noqa: B008
         None, "--config", "-c", help="Path to .code-atlas.toml config file."
     ),
     host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host to bind the server to."),

@@ -6,11 +6,11 @@ import asyncio
 import signal
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+import psutil
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
-import psutil
 
 from .config import AtlasSettings
 from .logging_config import get_logger
@@ -67,14 +67,14 @@ class MetricsServer:
                     error=str(exc),
                     error_type=type(exc).__name__
                 )
-                raise HTTPException(status_code=500, detail="Failed to generate metrics")
+                raise HTTPException(status_code=500, detail="Failed to generate metrics") from exc
 
         @self.app.get(self.settings.health_path)
         async def health_check():
             """Simple health check endpoint."""
             return {
                 "status": "healthy",
-                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                "timestamp": datetime.now(tz=UTC).isoformat(),
                 "service": "code-atlas-metrics"
             }
 
@@ -88,7 +88,7 @@ class MetricsServer:
                 process = psutil.Process()
 
                 status = {
-                    "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                    "timestamp": datetime.now(tz=UTC).isoformat(),
                     "service": "code-atlas-metrics",
                     "version": "1.0.0",
                     "metrics_enabled": self.settings.enable_metrics,
@@ -112,7 +112,7 @@ class MetricsServer:
                             "cpu_percent": process.cpu_percent(),
                             "num_threads": process.num_threads(),
                             "create_time": datetime.fromtimestamp(
-                                process.create_time(), tz=timezone.utc
+                                process.create_time(), tz=UTC
                             ).isoformat()
                         }
                     },
@@ -132,7 +132,7 @@ class MetricsServer:
                     error=str(exc),
                     error_type=type(exc).__name__
                 )
-                raise HTTPException(status_code=500, detail="Failed to get status")
+                raise HTTPException(status_code=500, detail="Failed to get status") from exc
 
         @self.app.get("/")
         async def root():

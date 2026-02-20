@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from typing import TYPE_CHECKING
 
@@ -189,7 +189,7 @@ class EntityResolver:
                 update_query,
                 {
                     "target_id": target_id,
-                    "merged_at": datetime.now(timezone.utc).isoformat(),
+                    "merged_at": datetime.now(UTC).isoformat(),
                     "source_name": source_name,
                 },
             )
@@ -202,7 +202,7 @@ class EntityResolver:
             record = MergeRecord(
                 merged_id=source_id,
                 canonical_id=target_id,
-                merged_at=datetime.now(timezone.utc).isoformat(),
+                merged_at=datetime.now(UTC).isoformat(),
                 similarity_score=similarity_score,
                 merged_name=source_name,
                 canonical_name=target_name,
