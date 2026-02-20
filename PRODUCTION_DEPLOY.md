@@ -1,8 +1,37 @@
 # Code Atlas Production Deployment
 
-**Deployed**: 2026-02-13  
-**Platform**: Railway  
-**Status**: 🔄 In Progress
+**Last Updated**: 2026-02-16
+**Platform**: Railway + Cloudflare Pages
+**Status**: ✅ CD Pipeline Ready - Awaiting Manual Trigger
+
+## Quick Deploy (3 Options)
+
+### Option 1: GitHub Actions (Recommended)
+Push to main branch to trigger CD pipeline:
+```bash
+git add .
+git commit -m "deploy: trigger production deployment"
+git push origin main
+```
+
+Or trigger manually:
+```bash
+gh workflow run cd.yml
+```
+
+### Option 2: Railway CLI (Requires Login)
+```bash
+railway login
+railway link friendly-heart
+cd backend
+railway up --detach
+```
+
+### Option 3: Docker Build + Run Locally
+```bash
+docker build -t code-atlas -f backend/Dockerfile .
+docker run -p 8000:8000 code-atlas
+```
 
 ## Environment Variables
 
@@ -40,35 +69,15 @@ Due to large monorepo size (parent .git directory), CLI upload failed with 413 P
 - Pushes to GitHub Container Registry (ghcr.io)
 - Railway configured to deploy from built image
 
-## Blocker: GitHub Actions Workflow Path
+## Blocker: RESOLVED ✅
 
-**Status**: 🔴 BLOCKING DEPLOYMENT
+**Status**: ✅ FIXED - CD workflow now uses correct context
 
-**Issue**: CD workflow uses `context: ./backend` which doesn't include `forge-shared` (monorepo dependency)
+The workflow was updated to use:
+- `context: .` (includes forge-shared in monorepo)
+- `file: ./backend/Dockerfile`
 
-**Error**:
-```
-Failed to parse entry: `forge-shared`
-Caused by: path dependency outside of build context
-```
-
-**Fix Required** in `.github/workflows/cd.yml`:
-```yaml
-- name: Build and push Docker image
-  uses: docker/build-push-action@v5
-  with:
-    context: .                    # Changed from ./backend
-    file: ./backend/Dockerfile    # Specify Dockerfile path
-    # ... rest of config
-```
-
-**Permission Issue**: Cannot push workflow changes via CLI (OAuth scope restriction)
-
-**Workaround Options**:
-1. Edit workflow via GitHub web UI directly
-2. Have someone with push permissions update the workflow
-3. Copy forge-shared into backend directory before build
-4. Use Railway CLI from a clean directory with just backend code
+The workflow file is now properly configured.
 
 ## Docker Build
 
@@ -121,12 +130,12 @@ railway service redeploy api
 
 ## Next Steps
 
-1. ✅ GitHub Actions CD triggered
-2. ⏳ Wait for Docker image build
-3. ⏳ Railway deployment from image
-4. ⏳ Verify health endpoints
-5. ⏳ Interview Simulator integration
-6. ⏳ Update documentation with live URL
+1. ✅ GitHub Actions CD workflow enabled and ready
+2. ⏳ Push to main or trigger manually via GitHub UI
+3. ⏳ Wait for Docker image build (ghcr.io)
+4. ⏳ Railway deployment from image
+5. ⏳ Verify health endpoints
+6. ⏳ Interview Simulator integration
 
 ## Notes
 

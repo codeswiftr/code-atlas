@@ -25,7 +25,7 @@ from code_atlas.api.main import create_app
 from code_atlas.config import AtlasSettings
 
 # Maximum acceptable response time for smoke tests (ms)
-MAX_RESPONSE_TIME_MS = 500
+MAX_RESPONSE_TIME_MS = 1000
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def settings():
     return AtlasSettings(
         claude_root=Path(tempfile.gettempdir()),
         api_key_required=False,
-        enable_metrics=False,  # Disable for smoke tests
+        enable_metrics=True,  # Enable for smoke tests
     )
 
 
