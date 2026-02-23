@@ -34,10 +34,15 @@ COPY backend/src/ ./src/
 # Modify pyproject.toml to use local path for forge-shared
 RUN sed -i 's|../../../forge-shared|./forge-shared|g' pyproject.toml
 
-# Create virtual environment and install dependencies
+# Create virtual environment and install dependencies.
+# Use the PyTorch CPU-only wheel index so Railway's builder does not pull
+# the full CUDA build (~2-3 GB). The --extra-index-url is checked after
+# PyPI, so non-torch packages are still fetched from PyPI as usual.
 RUN uv venv && \
     uv pip install -e ./forge-shared && \
-    uv pip install -e .
+    uv pip install \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
+        -e .
 
 # =============================================================================
 # Stage 2: Runtime - Minimal production image
