@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-forge-shared = { path = "../../../forge-shared", editable = true }
+forge-shared = { path = "../forge-shared", editable = true }
 
 [project.scripts]
 code-atlas = "code_atlas.cli:app"
