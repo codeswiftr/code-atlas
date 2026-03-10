@@ -180,19 +180,15 @@ Code Atlas is a comprehensive session intelligence tool with:
 
 ## Next Immediate Action
 
-Add rate limiting middleware to `/sessions/report` endpoint with per-API-key tracking.
+✅ **Already implemented** — `RateLimitMiddleware` exists in `src/code_atlas/api/middleware.py`.
 
-```python
-# backend/src/code_atlas/middleware/rate_limit.py
-class RateLimitMiddleware:
-    def __init__(self, app, limits: dict[str, int]):
-        # limits = {"free": 10, "pro": 100, "team": 1000}
-        ...
+Current implementation:
+- Per-minute sliding window (default: 100 req/min, admin: 1000 req/min)
+- Uses `X-API-Key` header for identification
+- Returns `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers
+- Skips rate limiting for `/health`, `/metrics`, `/status`, `/` endpoints
 
-    async def __call__(self, request, call_next):
-        api_key = request.headers.get("X-API-Key")
-        tier = await self.get_tier(api_key)
-        if await self.is_over_limit(api_key, tier):
-            return JSONResponse({"error": "Rate limit exceeded"}, 429)
-        return await call_next(request)
-```
+**What's needed:**
+- [ ] Per-tier limits (free=10/hr, pro=100/hr, team=1000/hr) instead of per-minute
+- [ ] Usage tracking to database for billing
+- [ ] Stripe integration for paid tiers
