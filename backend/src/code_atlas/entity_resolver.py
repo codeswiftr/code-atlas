@@ -358,6 +358,9 @@ class EntityResolver:
             name: Entity name
 
         Returns:
-            SHA1 hash of the name
+            SHA1 hash of the name (non-cryptographic, for ID generation only)
         """
-        return hashlib.sha1(name.encode("utf-8")).hexdigest()
+        # usedforsecurity=False: This hash is for deterministic ID generation,
+        # not cryptographic security. SHA1 provides good collision resistance
+        # for this use case.
+        return hashlib.sha1(name.encode("utf-8"), usedforsecurity=False).hexdigest()

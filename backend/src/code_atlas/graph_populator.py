@@ -17,7 +17,8 @@ logger = get_logger(__name__)
 
 
 def _hash(value: str) -> str:
-    return hashlib.sha1(value.encode("utf-8")).hexdigest()
+    # usedforsecurity=False: SHA1 for deterministic ID generation, not cryptography
+    return hashlib.sha1(value.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def _quote(value: str) -> str:
