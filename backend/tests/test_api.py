@@ -322,6 +322,92 @@ class TestSessionProcessing:
         assert "success_rate" in data
 
 
+class TestProjectReport:
+    """Tests for POST /api/v1/sessions/report."""
+
+    def test_report_nonexistent_path(self, client):
+        """Report on a missing path returns 422."""
+        response = client.post(
+            "/api/v1/sessions/report",
+            json={"project_path": "/nonexistent/path/that/does/not/exist"},
+        )
+        assert response.status_code == 422
+
+    def test_report_empty_project(self, client, tmp_path):
+        """Report on a directory with no sessions returns empty report."""
+        empty_dir = tmp_path / "empty-project"
+        empty_dir.mkdir()
+
+        response = client.post(
+            "/api/v1/sessions/report",
+            json={"project_path": str(empty_dir)},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["sessions_analyzed"] == 0
+        assert data["top_files"] == []
+        assert "No Claude Code session files found" in data["key_insights"][0]
+
+    def test_report_with_sessions(self, client, tmp_path):
+        """Report on a directory with sessions returns populated report."""
+        project_dir = tmp_path / "my-project"
+        project_dir.mkdir()
+
+        session_file = project_dir / "session-abc123.jsonl"
+        session_data = [
+            {
+                "type": "user",
+                "message": {
+                    "content": "Edit /home/user/project/main.py to add a function",
+                    "role": "user",
+                },
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": "I'll edit /home/user/project/main.py for you.",
+                    "role": "assistant",
+                },
+            },
+        ]
+        with open(session_file, "w") as f:
+            for line in session_data:
+                f.write(json.dumps(line) + "\n")
+
+        response = client.post(
+            "/api/v1/sessions/report",
+            json={"project_path": str(project_dir), "use_llm": False},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["sessions_analyzed"] == 1
+        assert data["project_name"] == "my-project"
+        assert "summary" in data
+        assert isinstance(data["top_files"], list)
+        assert isinstance(data["top_entities"], list)
+        assert isinstance(data["key_insights"], list)
+        assert data["cost_usd"] == 0.0  # heuristic mode is free
+
+    def test_report_respects_max_sessions(self, client, tmp_path):
+        """max_sessions cap is respected."""
+        project_dir = tmp_path / "big-project"
+        project_dir.mkdir()
+
+        for i in range(5):
+            f = project_dir / f"session-{i}.jsonl"
+            f.write_text(json.dumps({"type": "user", "message": {"content": "hi"}}) + "\n")
+
+        response = client.post(
+            "/api/v1/sessions/report",
+            json={"project_path": str(project_dir), "max_sessions": 2},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["sessions_analyzed"] <= 2
+
+
 class TestGraphEntities:
     """Tests for graph entity endpoints."""
 

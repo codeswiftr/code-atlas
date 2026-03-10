@@ -11,10 +11,16 @@ from ...config import AtlasSettings
 from ...job_store import JobStore, get_job_store
 from ...logging_config import get_logger
 from ...pipeline import PipelineRunner
+from ...insight_extractor import InsightExtractor
+from ...models import SessionMetadata
 from ...schemas.sessions import (
+    DateRange,
+    EntitySummary,
     JobStatus,
     ProcessingJob,
     ProcessingStatsResponse,
+    ProjectReportRequest,
+    ProjectReportResponse,
     SessionDiscoveryRequest,
     SessionDiscoveryResponse,
     SessionInfo,
@@ -22,6 +28,7 @@ from ...schemas.sessions import (
     SessionProcessResponse,
 )
 from ...session_discovery import SessionDiscovery
+from ...session_parser import SessionParser
 from ..dependencies import ApiKey, Settings
 
 logger = get_logger(__name__)
@@ -387,4 +394,147 @@ async def get_stats(
         total_cost_usd=total_cost,
         avg_processing_time_seconds=avg_time,
         success_rate=success_rate,
+    )
+
+
+@router.post(
+    "/report",
+    response_model=ProjectReportResponse,
+    summary="Generate project intelligence report",
+    description=(
+        "Discover and analyze Claude Code sessions under a project path, "
+        "then return a structured intelligence report: top files, entities, "
+        "key insights, and a plain-English summary. "
+        "Runs in heuristic mode by default — no FalkorDB or LLM API key required."
+    ),
+)
+async def generate_project_report(
+    request: ProjectReportRequest,
+    api_key: ApiKey,
+) -> ProjectReportResponse:
+    """One-shot project intelligence report from Claude Code sessions.
+
+    Does NOT require FalkorDB. Works with heuristic extraction (zero cost).
+    Use ``use_llm=true`` to enable LLM-based extraction (requires API key).
+    """
+    project_path = Path(request.project_path).expanduser().resolve()
+    if not project_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"project_path does not exist: {project_path}",
+        )
+
+    # Discover sessions under the given path.
+    session_files: list[Path] = []
+    for p in sorted(project_path.rglob("*.jsonl")):
+        session_files.append(p)
+        if len(session_files) >= request.max_sessions:
+            break
+
+    if not session_files:
+        return ProjectReportResponse(
+            project_name=project_path.name,
+            project_path=str(project_path),
+            sessions_analyzed=0,
+            total_messages=0,
+            total_tokens=0,
+            date_range=None,
+            top_files=[],
+            top_entities=[],
+            key_insights=["No Claude Code session files found under the given path."],
+            summary=f"No sessions found in {project_path}.",
+            cost_usd=0.0,
+        )
+
+    extractor = InsightExtractor(provider=None)  # heuristic mode — no LLM
+
+    # Aggregate across sessions.
+    total_messages = 0
+    total_tokens = 0
+    all_insights: list[str] = []
+    file_mentions: dict[str, int] = {}
+    entity_mentions: dict[tuple[str, str], int] = {}  # (name, type) → count
+    earliest: datetime | None = None
+    latest: datetime | None = None
+    cost_usd = 0.0
+
+    for session_path in session_files:
+        stat = session_path.stat()
+        meta = SessionMetadata(
+            path=session_path,
+            session_id=session_path.stem,
+            project=project_path.name,
+            size_bytes=stat.st_size,
+            modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
+        )
+        parser = SessionParser(meta)
+        try:
+            parsed = parser.parse()
+        except Exception:
+            continue
+
+        total_messages += len(parsed.messages)
+        total_tokens += parsed.total_tokens
+
+        if parsed.messages:
+            for msg in parsed.messages:
+                if msg.timestamp:
+                    if earliest is None or msg.timestamp < earliest:
+                        earliest = msg.timestamp
+                    if latest is None or msg.timestamp > latest:
+                        latest = msg.timestamp
+
+        if request.use_llm:
+            result = extractor.extract(parsed)
+        else:
+            result = extractor._heuristic_extract(parsed)  # noqa: SLF001
+
+        cost_usd += result.estimated_cost_usd
+        all_insights.extend(result.insights)
+
+        for entity in result.entities:
+            key = (entity.name, entity.type)
+            entity_mentions[key] = entity_mentions.get(key, 0) + 1
+            if entity.type == "file":
+                file_mentions[entity.name] = file_mentions.get(entity.name, 0) + 1
+
+    # Build ranked outputs.
+    top_files = [
+        name
+        for name, _ in sorted(file_mentions.items(), key=lambda x: x[1], reverse=True)[:20]
+    ]
+    top_entities = [
+        EntitySummary(name=name, type=etype, mentions=count)
+        for (name, etype), count in sorted(
+            entity_mentions.items(), key=lambda x: x[1], reverse=True
+        )[:20]
+    ]
+
+    # Deduplicate insights (same text can appear from multiple sessions).
+    seen: set[str] = set()
+    unique_insights: list[str] = []
+    for insight in all_insights:
+        if insight not in seen:
+            seen.add(insight)
+            unique_insights.append(insight)
+
+    mode_label = "LLM" if request.use_llm else "heuristic"
+    summary = (
+        f"Analyzed {len(session_files)} session(s) for project '{project_path.name}'. "
+        f"Found {len(file_mentions)} unique file(s) and {total_messages} message(s) "
+        f"({total_tokens:,} tokens). Extraction mode: {mode_label}."
+    )
+
+    return ProjectReportResponse(
+        project_name=project_path.name,
+        project_path=str(project_path),
+        sessions_analyzed=len(session_files),
+        total_messages=total_messages,
+        total_tokens=total_tokens,
+        date_range=DateRange(earliest=earliest, latest=latest) if earliest and latest else None,
+        top_files=top_files,
+        top_entities=top_entities,
+        key_insights=unique_insights[:50],
+        summary=summary,
+        cost_usd=cost_usd,
     )

@@ -180,3 +180,58 @@ class ProcessingStatsResponse(BaseResponse):
     total_cost_usd: float
     avg_processing_time_seconds: float
     success_rate: float
+
+
+# --- Project Report ---
+
+
+class ProjectReportRequest(BaseModel):
+    """Request to generate a project intelligence report."""
+
+    project_path: str = Field(
+        ...,
+        description="Local filesystem path to scan for Claude Code sessions.",
+    )
+    max_sessions: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+        description="Maximum number of sessions to analyze.",
+    )
+    use_llm: bool = Field(
+        default=False,
+        description="Use LLM for entity extraction. Defaults to free heuristic mode.",
+    )
+
+
+class EntitySummary(BaseModel):
+    """A single entity with aggregated mention count."""
+
+    name: str
+    type: str
+    mentions: int
+
+
+class DateRange(BaseModel):
+    earliest: datetime
+    latest: datetime
+
+
+class ProjectReportResponse(BaseResponse):
+    """Structured project intelligence report.
+
+    Generated from Claude Code session files without requiring FalkorDB.
+    Runs in heuristic mode by default (zero cost, no API keys needed).
+    """
+
+    project_name: str
+    project_path: str
+    sessions_analyzed: int
+    total_messages: int
+    total_tokens: int
+    date_range: DateRange | None
+    top_files: list[str]
+    top_entities: list[EntitySummary]
+    key_insights: list[str]
+    summary: str
+    cost_usd: float
