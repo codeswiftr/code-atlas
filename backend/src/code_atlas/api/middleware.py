@@ -9,6 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..logging_config import get_logger
 from ..schemas.auth import APITier, TIER_RATE_LIMITS
+from ..schemas.usage import UsageEventType
 
 logger = get_logger(__name__)
 
@@ -21,6 +22,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     - Pro: 100 requests/hour
     - Team: 1000 requests/hour
     - Admin (key contains 'admin'): 10000 requests/hour
+
+    Also records usage events for billing when usage_tracker is provided.
     """
 
     # Window size in seconds (1 hour)
@@ -30,9 +33,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self,
         app,
         key_manager=None,
+        usage_tracker=None,
     ):
         super().__init__(app)
         self._key_manager = key_manager
+        self._usage_tracker = usage_tracker
         # In-memory storage: {client_key: [(timestamp, count)]}
         self._requests: dict[str, list[datetime]] = {}
 
@@ -143,6 +148,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Add rate limit headers
         response.headers["X-RateLimit-Limit"] = str(limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
+
+        # Record usage event for billing (if tracker available)
+        if self._usage_tracker and response.status_code < 400:
+            try:
+                key_id = self._get_client_key(request)
+                # Determine event type based on endpoint
+                event_type = UsageEventType.API_REQUEST
+                if "/report" in request.url.path:
+                    event_type = UsageEventType.REPORT_GENERATED
+
+                self._usage_tracker.record_event(
+                    key_id=key_id,
+                    event_type=event_type,
+                    endpoint=request.url.path,
+                    metadata={"method": request.method, "status": response.status_code},
+                )
+            except Exception as e:
+                logger.warning("Failed to record usage event", error=str(e))
 
         return response
 

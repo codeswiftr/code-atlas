@@ -39,6 +39,13 @@ from .sessions import (
     SessionProcessResponse,
 )
 
+from .usage import (
+    UsageEvent,
+    UsageEventType,
+    UsageReport,
+    UsageSummary,
+)
+
 __all__ = [
     # Common
     "BaseResponse",
@@ -74,4 +81,9 @@ __all__ = [
     "BatchEmbeddingResponse",
     "SimilarityRequest",
     "SimilarityResponse",
+    # Usage
+    "UsageEvent",
+    "UsageEventType",
+    "UsageReport",
+    "UsageSummary",
 ]
