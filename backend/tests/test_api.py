@@ -617,12 +617,12 @@ class TestRateLimiting:
 
     @pytest.fixture
     def rate_limited_client(self):
-        """Create client with low rate limit for testing."""
+        """Create client with tier-based rate limiting."""
         settings = AtlasSettings(
             claude_root=Path(tempfile.gettempdir()),
             api_key_required=False,
             enable_metrics=False,
-            rate_limit_per_minute=5,  # Very low for testing
+            # Tier-based rate limiting: Free tier = 10/hour
         )
         app = create_app(settings)
         return TestClient(app)
@@ -632,11 +632,13 @@ class TestRateLimiting:
         response = client.get("/api/v1/sessions")
         assert "X-RateLimit-Limit" in response.headers
         assert "X-RateLimit-Remaining" in response.headers
+        # Free tier should show 10/hour limit
+        assert response.headers["X-RateLimit-Limit"] == "10"
 
     def test_rate_limit_exceeded(self, rate_limited_client):
-        """Test rate limit is enforced."""
-        # Make requests up to the limit
-        for _ in range(5):
+        """Test rate limit is enforced after free tier limit (10/hour)."""
+        # Make requests up to the free tier limit (10/hour)
+        for _ in range(10):
             response = rate_limited_client.get("/api/v1/sessions")
             assert response.status_code == 200
 

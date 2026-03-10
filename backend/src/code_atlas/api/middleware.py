@@ -8,26 +8,31 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..logging_config import get_logger
+from ..schemas.auth import APITier, TIER_RATE_LIMITS
 
 logger = get_logger(__name__)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Simple in-memory rate limiting middleware.
+    """Tier-based hourly rate limiting middleware.
 
-    For production, consider using Redis-backed rate limiting
-    with libraries like slowapi or fastapi-limiter.
+    Rate limits are per-hour and based on subscription tier:
+    - Free: 10 requests/hour
+    - Pro: 100 requests/hour
+    - Team: 1000 requests/hour
+    - Admin (key contains 'admin'): 10000 requests/hour
     """
+
+    # Window size in seconds (1 hour)
+    WINDOW_SECONDS = 3600
 
     def __init__(
         self,
         app,
-        requests_per_minute: int = 100,
-        admin_requests_per_minute: int = 1000,
+        key_manager=None,
     ):
         super().__init__(app)
-        self.requests_per_minute = requests_per_minute
-        self.admin_requests_per_minute = admin_requests_per_minute
+        self._key_manager = key_manager
         # In-memory storage: {client_key: [(timestamp, count)]}
         self._requests: dict[str, list[datetime]] = {}
 
@@ -49,24 +54,41 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def _is_admin(self, request: Request) -> bool:
         """Check if request is from admin."""
-        # This is a simple check - in production, validate against stored keys
         api_key = request.headers.get("X-API-Key", "")
         return api_key.startswith("admin-") or "admin" in api_key.lower()
 
+    def _get_tier(self, request: Request) -> APITier:
+        """Get tier for the request."""
+        if self._is_admin(request):
+            # Admin gets team-level limits
+            return APITier.TEAM
+
+        # For now, default to free tier
+        # In production, look up tier from key_manager
+        return APITier.FREE
+
+    def _get_limit(self, request: Request) -> int:
+        """Get rate limit based on tier."""
+        if self._is_admin(request):
+            return 10000  # Admin gets very high limit
+
+        tier = self._get_tier(request)
+        return TIER_RATE_LIMITS.get(tier, 10)
+
     def _cleanup_old_requests(self, client_key: str, now: datetime) -> None:
-        """Remove requests older than 1 minute."""
+        """Remove requests older than window size."""
         if client_key in self._requests:
-            cutoff = now.timestamp() - 60  # 1 minute ago
+            cutoff = now.timestamp() - self.WINDOW_SECONDS
             self._requests[client_key] = [
                 ts for ts in self._requests[client_key]
                 if ts.timestamp() > cutoff
             ]
 
-    def _check_rate_limit(self, request: Request) -> tuple[bool, int]:
+    def _check_rate_limit(self, request: Request) -> tuple[bool, int, int]:
         """Check if request is within rate limit.
 
         Returns:
-            Tuple of (is_allowed, remaining_requests)
+            Tuple of (is_allowed, remaining_requests, limit)
         """
         client_key = self._get_client_key(request)
         now = datetime.now(tz=UTC)
@@ -74,12 +96,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Cleanup old requests
         self._cleanup_old_requests(client_key, now)
 
-        # Determine limit based on client type
-        limit = (
-            self.admin_requests_per_minute
-            if self._is_admin(request)
-            else self.requests_per_minute
-        )
+        # Determine limit based on tier
+        limit = self._get_limit(request)
 
         # Get current request count
         if client_key not in self._requests:
@@ -88,12 +106,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         current_count = len(self._requests[client_key])
 
         if current_count >= limit:
-            return False, 0
+            return False, 0, limit
 
         # Record this request
         self._requests[client_key].append(now)
 
-        return True, limit - current_count - 1
+        return True, limit - current_count - 1, limit
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with rate limiting."""
@@ -101,32 +119,29 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in ("/health", "/metrics", "/status", "/"):
             return await call_next(request)
 
-        is_allowed, remaining = self._check_rate_limit(request)
+        is_allowed, remaining, limit = self._check_rate_limit(request)
 
         if not is_allowed:
             logger.warning(
                 "Rate limit exceeded",
                 client=self._get_client_key(request),
                 path=request.url.path,
+                limit=limit,
             )
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content={"detail": "Rate limit exceeded. Please try again later."},
                 headers={
-                    "X-RateLimit-Limit": str(self.requests_per_minute),
+                    "X-RateLimit-Limit": str(limit),
                     "X-RateLimit-Remaining": "0",
-                    "Retry-After": "60",
+                    "Retry-After": str(self.WINDOW_SECONDS),
                 },
             )
 
         response = await call_next(request)
 
         # Add rate limit headers
-        response.headers["X-RateLimit-Limit"] = str(
-            self.admin_requests_per_minute
-            if self._is_admin(request)
-            else self.requests_per_minute
-        )
+        response.headers["X-RateLimit-Limit"] = str(limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
 
         return response

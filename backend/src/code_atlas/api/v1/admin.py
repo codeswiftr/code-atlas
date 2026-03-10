@@ -14,6 +14,7 @@ from ...schemas.auth import (
     APIKeyCreateResponse,
     APIKeyInfo,
     APIKeyUsageStats,
+    TIER_RATE_LIMITS,
 )
 from ..dependencies import ApiKey
 
@@ -36,6 +37,7 @@ def _record_to_info(record) -> APIKeyInfo:
         name=record.name,
         key_prefix=record.key_prefix,
         scopes=record.scopes,
+        tier=record.tier,
         is_active=record.is_active,
         created_at=record.created_at,
         expires_at=record.expires_at,
@@ -65,11 +67,13 @@ async def create_api_key(
         "API key creation requested",
         name=request.name,
         scopes=[s.value for s in request.scopes],
+        tier=request.tier.value,
     )
 
     raw_key, record = key_manager.generate_key(
         name=request.name,
         scopes=request.scopes,
+        tier=request.tier,
         expires_in_days=request.expires_in_days,
     )
 
@@ -78,6 +82,7 @@ async def create_api_key(
         raw_key=raw_key,
         name=record.name,
         scopes=record.scopes,
+        tier=record.tier,
         expires_at=record.expires_at,
     )
 
@@ -180,8 +185,10 @@ async def get_key_usage(
     return APIKeyUsageStats(
         key_id=record.key_id,
         name=record.name,
+        tier=record.tier,
         request_count=record.request_count,
         last_used_at=record.last_used_at,
-        requests_today=requests_today,
-        rate_limit_remaining=1000 - requests_today,  # Placeholder
+        requests_this_hour=requests_today,  # Simplified
+        rate_limit_hourly=TIER_RATE_LIMITS.get(record.tier, 10),
+        rate_limit_remaining=TIER_RATE_LIMITS.get(record.tier, 10) - requests_today,
     )

@@ -152,14 +152,8 @@ X-API-Key: your-api-key-here
             ),
         )
 
-        # Add rate limiting middleware
-        rate_limit = getattr(self.settings, "rate_limit_per_minute", 100)
-        admin_rate_limit = getattr(self.settings, "admin_rate_limit_per_minute", 1000)
-        app.add_middleware(
-            RateLimitMiddleware,
-            requests_per_minute=rate_limit,
-            admin_requests_per_minute=admin_rate_limit,
-        )
+        # Add rate limiting middleware (tier-based hourly limits)
+        app.add_middleware(RateLimitMiddleware)
 
         # Add request logging middleware
         @app.middleware("http")

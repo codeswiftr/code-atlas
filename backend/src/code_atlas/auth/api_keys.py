@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ..logging_config import get_logger
-from ..schemas.auth import APIKeyRecord, APIKeyScope
+from ..schemas.auth import APIKeyRecord, APIKeyScope, APITier
 
 logger = get_logger(__name__)
 
@@ -63,6 +63,7 @@ class APIKeyManager:
                 key_hash TEXT NOT NULL,
                 key_prefix TEXT NOT NULL,
                 scopes TEXT NOT NULL,
+                tier TEXT NOT NULL DEFAULT 'free',
                 is_active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
                 expires_at TEXT,
@@ -100,12 +101,19 @@ class APIKeyManager:
 
     def _row_to_record(self, row: sqlite3.Row) -> APIKeyRecord:
         """Convert database row to APIKeyRecord."""
+        tier_str = row["tier"] if "tier" in row.keys() else "free"
+        try:
+            tier = APITier(tier_str)
+        except ValueError:
+            tier = APITier.FREE
+
         return APIKeyRecord(
             key_id=row["key_id"],
             name=row["name"],
             key_hash=row["key_hash"],
             key_prefix=row["key_prefix"],
             scopes=self._deserialize_scopes(row["scopes"]),
+            tier=tier,
             is_active=bool(row["is_active"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             expires_at=(
@@ -125,6 +133,7 @@ class APIKeyManager:
         self,
         name: str,
         scopes: list[APIKeyScope],
+        tier: APITier = APITier.FREE,
         expires_in_days: int | None = None,
     ) -> tuple[str, APIKeyRecord]:
         """Generate new API key with prefix 'cat_'.
@@ -134,6 +143,7 @@ class APIKeyManager:
         Args:
             name: Human-readable name for the key.
             scopes: List of scopes to grant.
+            tier: Subscription tier for rate limiting.
             expires_in_days: Days until expiration (None = never).
 
         Returns:
@@ -158,6 +168,7 @@ class APIKeyManager:
             key_hash=key_hash,
             key_prefix=raw_key[:12],  # "cat_" + first 8 chars
             scopes=scopes,
+            tier=tier,
             is_active=True,
             created_at=now,
             expires_at=expires_at,
@@ -170,9 +181,9 @@ class APIKeyManager:
         conn.execute(
             """
             INSERT INTO api_keys (
-                key_id, name, key_hash, key_prefix, scopes,
+                key_id, name, key_hash, key_prefix, scopes, tier,
                 is_active, created_at, expires_at, last_used_at, request_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.key_id,
@@ -180,6 +191,7 @@ class APIKeyManager:
                 record.key_hash,
                 record.key_prefix,
                 self._serialize_scopes(record.scopes),
+                record.tier.value,
                 1,
                 record.created_at.isoformat(),
                 record.expires_at.isoformat() if record.expires_at else None,
@@ -194,6 +206,7 @@ class APIKeyManager:
             key_id=key_id,
             name=name,
             scopes=[s.value for s in scopes],
+            tier=tier.value,
         )
 
         return raw_key, record

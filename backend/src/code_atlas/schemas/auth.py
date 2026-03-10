@@ -17,6 +17,22 @@ class APIKeyScope(str, Enum):
     ADMIN = "admin"  # Manage API keys, system config
 
 
+class APITier(str, Enum):
+    """Subscription tiers with different rate limits."""
+
+    FREE = "free"  # 10 reports/hour
+    PRO = "pro"  # 100 reports/hour
+    TEAM = "team"  # 1000 reports/hour
+
+
+# Tier rate limits (requests per hour)
+TIER_RATE_LIMITS: dict[APITier, int] = {
+    APITier.FREE: 10,
+    APITier.PRO: 100,
+    APITier.TEAM: 1000,
+}
+
+
 class APIKeyRecord(BaseModel):
     """API key record stored in database."""
 
@@ -25,6 +41,7 @@ class APIKeyRecord(BaseModel):
     key_hash: str = Field(..., description="Hashed API key (never store raw)")
     key_prefix: str = Field(..., description="First 8 chars of key for identification")
     scopes: list[APIKeyScope] = Field(default_factory=list, description="Granted scopes")
+    tier: APITier = Field(default=APITier.FREE, description="Subscription tier")
     is_active: bool = Field(default=True, description="Whether key is active")
     created_at: datetime = Field(..., description="When key was created")
     expires_at: datetime | None = Field(None, description="Expiration time (None = never)")
@@ -40,6 +57,7 @@ class APIKeyCreateRequest(BaseModel):
         default=[APIKeyScope.READ],
         description="Scopes to grant",
     )
+    tier: APITier = Field(default=APITier.FREE, description="Subscription tier")
     expires_in_days: int | None = Field(
         None,
         ge=1,
@@ -58,6 +76,7 @@ class APIKeyCreateResponse(BaseModel):
     )
     name: str
     scopes: list[APIKeyScope]
+    tier: APITier
     expires_at: datetime | None
     message: str = Field(
         default="API key created. Save the raw_key - it cannot be retrieved later."
@@ -71,6 +90,7 @@ class APIKeyInfo(BaseModel):
     name: str
     key_prefix: str
     scopes: list[APIKeyScope]
+    tier: APITier
     is_active: bool
     created_at: datetime
     expires_at: datetime | None
@@ -83,7 +103,9 @@ class APIKeyUsageStats(BaseModel):
 
     key_id: str
     name: str
+    tier: APITier
     request_count: int
     last_used_at: datetime | None
-    requests_today: int = Field(default=0, description="Requests in last 24 hours")
-    rate_limit_remaining: int = Field(default=0, description="Requests remaining in window")
+    requests_this_hour: int = Field(default=0, description="Requests in current hour window")
+    rate_limit_hourly: int = Field(default=10, description="Hourly rate limit for tier")
+    rate_limit_remaining: int = Field(default=0, description="Requests remaining in current window")

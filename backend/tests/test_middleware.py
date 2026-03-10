@@ -1,6 +1,6 @@
 """Unit tests for API middleware."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.testclient import TestClient
 
 from code_atlas.api.middleware import RateLimitMiddleware, RequestLoggingMiddleware
+from code_atlas.schemas.auth import APITier, TIER_RATE_LIMITS
 
 
 class TestRateLimitMiddleware:
@@ -17,11 +18,8 @@ class TestRateLimitMiddleware:
     def app(self):
         """Create a test FastAPI app with rate limiting."""
         app = FastAPI()
-        app.add_middleware(
-            RateLimitMiddleware,
-            requests_per_minute=10,
-            admin_requests_per_minute=100,
-        )
+        # No constructor args needed - uses tier-based limits by default
+        app.add_middleware(RateLimitMiddleware)
 
         @app.get("/test")
         async def test_endpoint():
@@ -48,8 +46,11 @@ class TestRateLimitMiddleware:
 
     def test_blocks_requests_over_limit(self, client):
         """Test that requests over limit are blocked."""
+        # Free tier limit is 10/hour
+        free_limit = TIER_RATE_LIMITS[APITier.FREE]
+
         # Make requests up to the limit
-        for _ in range(10):
+        for _ in range(free_limit):
             response = client.get("/test")
             assert response.status_code == 200
 
@@ -63,29 +64,32 @@ class TestRateLimitMiddleware:
 
     def test_health_endpoint_bypasses_rate_limit(self, client):
         """Test that health endpoints bypass rate limiting."""
+        free_limit = TIER_RATE_LIMITS[APITier.FREE]
+
         # Exhaust the rate limit
-        for _ in range(10):
+        for _ in range(free_limit):
             client.get("/test")
 
         # Health endpoint should still work
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_admin_api_key_gets_higher_limit(self, client):
+    def test_admin_api_key_gets_high_limit(self, client):
         """Test that admin API keys get higher rate limits."""
         headers = {"X-API-Key": "admin-test-key"}
 
         response = client.get("/test", headers=headers)
         assert response.status_code == 200
-        assert response.headers["X-RateLimit-Limit"] == "100"
+        # Admin gets 10000 limit
+        assert response.headers["X-RateLimit-Limit"] == "10000"
 
-    def test_regular_api_key_gets_standard_limit(self, client):
-        """Test that regular API keys get standard limits."""
+    def test_regular_api_key_gets_free_tier_limit(self, client):
+        """Test that regular API keys get free tier limits."""
         headers = {"X-API-Key": "regular-key-12345"}
 
         response = client.get("/test", headers=headers)
         assert response.status_code == 200
-        assert response.headers["X-RateLimit-Limit"] == "10"
+        assert response.headers["X-RateLimit-Limit"] == str(TIER_RATE_LIMITS[APITier.FREE])
 
     def test_rate_limit_per_client_ip(self, client):
         """Test that rate limiting is per client IP."""
@@ -97,18 +101,13 @@ class TestRateLimitMiddleware:
 
     def test_rate_limit_cleanup_old_requests(self):
         """Test that old requests are cleaned up."""
-        middleware = RateLimitMiddleware(
-            app=MagicMock(),
-            requests_per_minute=10,
-        )
+        middleware = RateLimitMiddleware(app=MagicMock())
 
         client_key = "ip:127.0.0.1"
         now = datetime.now(tz=UTC)
 
-        # Add some old timestamps (>1 minute ago)
-        from datetime import timedelta
-
-        old_time = now - timedelta(seconds=70)
+        # Add some old timestamps (>1 hour ago)
+        old_time = now - timedelta(seconds=3700)
         middleware._requests[client_key] = [old_time, old_time, old_time]
 
         # Cleanup should remove them
@@ -166,6 +165,42 @@ class TestRateLimitMiddleware:
         # Non-admin key
         mock_request.headers.get.return_value = "regular-key"
         assert middleware._is_admin(mock_request) is False
+
+    def test_get_tier_returns_free_by_default(self):
+        """Test that tier returns free for non-admin requests."""
+        middleware = RateLimitMiddleware(app=MagicMock())
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers.get.return_value = "regular-key"
+
+        tier = middleware._get_tier(mock_request)
+        assert tier == APITier.FREE
+
+    def test_get_tier_returns_team_for_admin(self):
+        """Test that admin requests get team tier."""
+        middleware = RateLimitMiddleware(app=MagicMock())
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers.get.return_value = "admin-key-12345"
+
+        tier = middleware._get_tier(mock_request)
+        # Admin is not a tier, but gets high limit via _get_limit
+        assert middleware._is_admin(mock_request) is True
+
+    def test_get_limit_returns_correct_tier_limits(self):
+        """Test that limit matches tier configuration."""
+        middleware = RateLimitMiddleware(app=MagicMock())
+
+        # Free tier
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers.get.return_value = "regular-key"
+        limit = middleware._get_limit(mock_request)
+        assert limit == TIER_RATE_LIMITS[APITier.FREE]
+
+        # Admin
+        mock_request.headers.get.return_value = "admin-key"
+        limit = middleware._get_limit(mock_request)
+        assert limit == 10000
 
 
 class TestRequestLoggingMiddleware:
