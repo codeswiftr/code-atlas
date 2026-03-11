@@ -245,10 +245,10 @@ class UsageTracker:
             key_id=key_id,
             period_start=period_start,
             period_end=period_end,
-            total_requests=row["total_requests"] if row else 0,
-            report_count=row["report_count"] if row else 0,
-            total_tokens=row["total_tokens"] if row else 0,
-            total_cost_usd=row["total_cost"] if row else 0.0,
+            total_requests=row["total_requests"] if row and row["total_requests"] is not None else 0,
+            report_count=row["report_count"] if row and row["report_count"] is not None else 0,
+            total_tokens=row["total_tokens"] if row and row["total_tokens"] is not None else 0,
+            total_cost_usd=row["total_cost"] if row and row["total_cost"] is not None else 0.0,
         )
 
     def _row_to_event(self, row: sqlite3.Row) -> UsageEvent:
