@@ -5,7 +5,7 @@
     "dockerfilePath": "backend/Dockerfile"
   },
   "deploy": {
-    "startCommand": "python -m code_atlas.cli serve --host 0.0.0.0 --port $PORT",
+    "startCommand": "sh -c 'uvicorn code_atlas.api.main:app --host 0.0.0.0 --port $PORT'",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "startPeriod": 60,
