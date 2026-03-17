@@ -28,6 +28,7 @@ dependencies = [
     "alembic>=1.17.2",
     "forge-shared>=0.1.0",
     "posthog>=3.0.0",
+    "stripe>=14.2.0",
 ]
 
 [tool.uv.sources]

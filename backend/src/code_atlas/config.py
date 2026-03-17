@@ -192,6 +192,27 @@ class AtlasSettings(BaseSettings):
         description="PostHog host URL.",
         alias="CODE_ATLAS_POSTHOG_HOST",
     )
+    # Stripe Billing
+    stripe_api_key: str | None = Field(
+        default=None,
+        description="Stripe API secret key for billing.",
+        alias="STRIPE_API_KEY",
+    )
+    stripe_webhook_secret: str | None = Field(
+        default=None,
+        description="Stripe webhook signing secret.",
+        alias="STRIPE_WEBHOOK_SECRET",
+    )
+    stripe_price_pro: str | None = Field(
+        default=None,
+        description="Stripe price ID for Pro tier.",
+        alias="STRIPE_PRICE_PRO",
+    )
+    stripe_price_team: str | None = Field(
+        default=None,
+        description="Stripe price ID for Team tier.",
+        alias="STRIPE_PRICE_TEAM",
+    )
 
     @property
     def session_root(self) -> Path:
