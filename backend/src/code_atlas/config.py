@@ -152,8 +152,13 @@ class AtlasSettings(BaseSettings):
         alias="CODE_ATLAS_ADMIN_API_KEY",
     )
     cors_origins: list[str] = Field(
-        default=["*"],
-        description="Allowed CORS origins.",
+        default=["https://app.codeswiftr.com"],
+        description=(
+            "Allowed CORS origins for production. "
+            "Set CODE_ATLAS_CORS_ORIGINS as a comma-separated list of origins. "
+            "In development the app uses a localhost regex instead of this list. "
+            "Example: https://app.codeswiftr.com,https://www.codeswiftr.com"
+        ),
         alias="CODE_ATLAS_CORS_ORIGINS",
     )
     rate_limit_per_minute: int = Field(

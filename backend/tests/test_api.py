@@ -597,19 +597,188 @@ class TestErrorHandling:
 
 
 class TestCORS:
-    """Tests for CORS configuration."""
+    """Tests for environment-aware CORS configuration."""
 
-    def test_cors_headers(self, client):
-        """Test CORS headers are present."""
-        response = client.options(
+    # ---------------------------------------------------------------------------
+    # Development mode — localhost regex should be accepted
+    # ---------------------------------------------------------------------------
+
+    @pytest.fixture
+    def dev_client(self):
+        """App in development mode (default)."""
+        settings = AtlasSettings(
+            claude_root=Path(tempfile.gettempdir()),
+            api_key_required=False,
+            enable_metrics=False,
+        )
+        # environment defaults to "development"
+        return TestClient(create_app(settings), raise_server_exceptions=False)
+
+    @pytest.fixture
+    def prod_client(self):
+        """App in production mode with explicit allowed origins."""
+        from code_atlas.config import Environment
+
+        settings = AtlasSettings(
+            claude_root=Path(tempfile.gettempdir()),
+            api_key_required=False,
+            enable_metrics=False,
+            environment=Environment.PRODUCTION,
+            cors_origins=["https://app.codeswiftr.com"],
+        )
+        return TestClient(create_app(settings), raise_server_exceptions=False)
+
+    def test_dev_cors_allows_localhost(self, dev_client):
+        """Development CORS allows localhost on any port."""
+        response = dev_client.options(
             "/api/v1/sessions",
             headers={
                 "Origin": "http://localhost:3000",
-                "Access-Control-Request-Method": "GET"
-            }
+                "Access-Control-Request-Method": "GET",
+            },
         )
-        # OPTIONS might return 200 or 405 depending on config
-        assert response.status_code in [200, 405]
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+    def test_dev_cors_allows_localhost_127(self, dev_client):
+        """Development CORS allows 127.0.0.1 origins."""
+        response = dev_client.options(
+            "/api/v1/sessions",
+            headers={
+                "Origin": "http://127.0.0.1:8080",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "http://127.0.0.1:8080"
+
+    def test_dev_cors_rejects_arbitrary_external_origin(self, dev_client):
+        """Development CORS does NOT allow arbitrary external origins."""
+        response = dev_client.options(
+            "/api/v1/sessions",
+            headers={
+                "Origin": "https://evil.example.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        # Starlette CORSMiddleware returns 400 for disallowed preflight origins
+        assert response.headers.get("access-control-allow-origin") is None
+
+    # ---------------------------------------------------------------------------
+    # Production mode — only explicit origins are allowed
+    # ---------------------------------------------------------------------------
+
+    def test_prod_cors_allows_explicit_origin(self, prod_client):
+        """Production CORS allows the configured frontend domain."""
+        response = prod_client.options(
+            "/api/v1/sessions",
+            headers={
+                "Origin": "https://app.codeswiftr.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.status_code == 200
+        assert (
+            response.headers.get("access-control-allow-origin") == "https://app.codeswiftr.com"
+        )
+
+    def test_prod_cors_rejects_localhost(self, prod_client):
+        """Production CORS does NOT allow localhost origins."""
+        response = prod_client.options(
+            "/api/v1/sessions",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.headers.get("access-control-allow-origin") is None
+
+    def test_prod_cors_rejects_wildcard_origin(self, prod_client):
+        """Production CORS never echoes back a wildcard."""
+        response = prod_client.options(
+            "/api/v1/sessions",
+            headers={
+                "Origin": "*",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        allow_origin = response.headers.get("access-control-allow-origin", "")
+        assert allow_origin != "*"
+
+    def test_prod_cors_rejects_arbitrary_external_origin(self, prod_client):
+        """Production CORS rejects origins not in the allowlist."""
+        response = prod_client.options(
+            "/api/v1/sessions",
+            headers={
+                "Origin": "https://evil.example.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.headers.get("access-control-allow-origin") is None
+
+    # ---------------------------------------------------------------------------
+    # Method / header restrictions (both environments)
+    # ---------------------------------------------------------------------------
+
+    def test_cors_exposes_request_id_header(self, dev_client):
+        """CORS exposes X-Request-ID so the frontend can read it."""
+        response = dev_client.get(
+            "/health",
+            headers={"Origin": "http://localhost:3000"},
+        )
+        expose = response.headers.get("access-control-expose-headers", "")
+        assert "X-Request-ID" in expose
+
+    def test_cors_allows_x_api_key_header(self, dev_client):
+        """Preflight confirms X-API-Key is an allowed request header."""
+        response = dev_client.options(
+            "/api/v1/sessions",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "X-API-Key",
+            },
+        )
+        assert response.status_code == 200
+        allow_headers = response.headers.get("access-control-allow-headers", "").lower()
+        assert "x-api-key" in allow_headers
+
+    def test_cors_credentials_are_supported(self, dev_client):
+        """CORS allows credentials (needed for auth cookies / bearer tokens)."""
+        response = dev_client.options(
+            "/api/v1/sessions",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.headers.get("access-control-allow-credentials") == "true"
+
+    # ---------------------------------------------------------------------------
+    # Config default — wildcard must not appear in production default
+    # ---------------------------------------------------------------------------
+
+    def test_default_cors_origins_not_wildcard(self):
+        """The default cors_origins setting must not contain a bare wildcard."""
+        from code_atlas.config import Environment
+
+        settings = AtlasSettings(
+            claude_root=Path(tempfile.gettempdir()),
+            environment=Environment.PRODUCTION,
+        )
+        assert "*" not in settings.cors_origins, (
+            "cors_origins must not default to '*' — this allows any origin in production"
+        )
+
+    def test_default_cors_origins_includes_production_domain(self):
+        """Default cors_origins includes the known production frontend domain."""
+        from code_atlas.config import Environment
+
+        settings = AtlasSettings(
+            claude_root=Path(tempfile.gettempdir()),
+            environment=Environment.PRODUCTION,
+        )
+        assert "https://app.codeswiftr.com" in settings.cors_origins
 
 
 class TestRateLimiting:

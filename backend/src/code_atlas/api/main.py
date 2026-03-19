@@ -116,15 +116,31 @@ X-API-Key: your-api-key-here
 
         # Add CORS middleware
         # In development: allow localhost on any port + .local domains via regex
-        # In production: use explicit origins from settings
+        # In production: restrict to explicit origins from settings, and lock down
+        #   methods and headers to only what the frontend actually uses.
         is_development = getattr(self.settings, "environment", "development") != "production"
         allow_origin_regex = None
         cors_origins: list[str] = []
 
+        # Methods the frontend legitimately uses.
+        _allowed_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+
+        # Headers the frontend sends or that our middleware injects.
+        _allowed_headers = [
+            "Authorization",
+            "Content-Type",
+            "X-API-Key",
+            "X-Request-ID",
+            "Accept",
+            "Origin",
+        ]
+
         if is_development:
-            # Development: allow localhost on any port + .local domains (Caddy proxy)
+            # Development: allow localhost on any port + .local domains (Caddy proxy).
+            # Methods/headers stay explicit — no wildcard even in dev.
             allow_origin_regex = r"^https?://(localhost|127\.0\.0\.1|[\w.-]+\.local)(:\d+)?$"
         else:
+            # Production: use explicit origin list; never fall back to "*".
             cors_origins = (
                 self.settings.cors_origins
                 if hasattr(self.settings, "cors_origins")
@@ -136,8 +152,9 @@ X-API-Key: your-api-key-here
             allow_origins=cors_origins,
             allow_origin_regex=allow_origin_regex,
             allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_methods=_allowed_methods,
+            allow_headers=_allowed_headers,
+            expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"],
         )
 
         # UTM middleware for attribution tracking
