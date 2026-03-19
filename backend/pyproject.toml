@@ -29,6 +29,7 @@ dependencies = [
     "forge-shared>=0.1.0",
     "posthog>=3.0.0",
     "stripe>=14.2.0",
+    "aiosqlite>=0.20.0",
 ]
 
 [tool.uv.sources]

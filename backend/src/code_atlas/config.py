@@ -181,6 +181,34 @@ class AtlasSettings(BaseSettings):
         description="Name of the graph in FalkorDB.",
         alias="CODE_ATLAS_GRAPH_NAME",
     )
+    # Graph backend selection
+    graph_backend: str = Field(
+        default="auto",
+        description=(
+            "Graph store backend to use. "
+            "'sqlite' — always use SQLite (no Redis needed, deploy anywhere); "
+            "'falkordb' — always use FalkorDB (requires redis_url / falkordb_url); "
+            "'auto' — use FalkorDB when falkordb_url is set, else SQLite."
+        ),
+        alias="GRAPH_BACKEND",
+    )
+    falkordb_url: str | None = Field(
+        default=None,
+        description=(
+            "Explicit FalkorDB connection URL. "
+            "When set and graph_backend='auto', FalkorDB is selected. "
+            "Falls back to redis_url when this is unset."
+        ),
+        alias="CODE_ATLAS_FALKORDB_URL",
+    )
+    sqlite_graph_path: str | None = Field(
+        default=None,
+        description=(
+            "File-system path for the SQLite graph database. "
+            "Defaults to 'graph.db' in the current working directory."
+        ),
+        alias="CODE_ATLAS_SQLITE_GRAPH_PATH",
+    )
     # PostHog Analytics
     posthog_api_key: str | None = Field(
         default=None,
