@@ -17,7 +17,14 @@ from ..posthog_analytics import PostHogAnalytics
 from ..websocket import websocket_job_updates
 from ..billing import router as billing_webhook_router
 from .middleware import RateLimitMiddleware
-from .v1 import admin_router, billing_router, graph_router, insights_router, sessions_router
+from .v1 import (
+    admin_router,
+    billing_router,
+    graph_router,
+    insights_router,
+    integrations_router,
+    sessions_router,
+)
 
 logger = get_logger(__name__)
 
@@ -179,6 +186,7 @@ X-API-Key: your-api-key-here
         app.include_router(admin_router, prefix="/api/v1")
         app.include_router(insights_router, prefix="/api/v1")
         app.include_router(billing_router, prefix="/api/v1")
+        app.include_router(integrations_router, prefix="/api/v1")
 
         # Add webhook route at root level (Stripe requirement)
         app.include_router(billing_webhook_router, prefix="/webhooks")
