@@ -64,6 +64,9 @@ class APIKeyManager:
                 key_prefix TEXT NOT NULL,
                 scopes TEXT NOT NULL,
                 tier TEXT NOT NULL DEFAULT 'free',
+                subscription_status TEXT NOT NULL DEFAULT 'active',
+                stripe_customer_id TEXT,
+                stripe_subscription_id TEXT,
                 is_active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
                 expires_at TEXT,
@@ -71,6 +74,16 @@ class APIKeyManager:
                 request_count INTEGER NOT NULL DEFAULT 0
             )
         """)
+        # Add columns to existing tables (idempotent — ignored if column exists)
+        for col_def in (
+            "ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'active'",
+            "ADD COLUMN stripe_customer_id TEXT",
+            "ADD COLUMN stripe_subscription_id TEXT",
+        ):
+            try:
+                conn.execute(f"ALTER TABLE api_keys {col_def}")
+            except Exception:
+                pass  # Column already exists
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)
         """)
@@ -101,7 +114,8 @@ class APIKeyManager:
 
     def _row_to_record(self, row: sqlite3.Row) -> APIKeyRecord:
         """Convert database row to APIKeyRecord."""
-        tier_str = row["tier"] if "tier" in row.keys() else "free"
+        keys = row.keys()
+        tier_str = row["tier"] if "tier" in keys else "free"
         try:
             tier = APITier(tier_str)
         except ValueError:
@@ -319,6 +333,115 @@ class APIKeyManager:
         cursor = conn.execute(
             "SELECT * FROM api_keys WHERE key_id = ?",
             (key_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return self._row_to_record(row)
+
+    def update_tier(self, key_id: str, tier: APITier) -> bool:
+        """Update the subscription tier for an API key.
+
+        Args:
+            key_id: The key ID to update.
+            tier: New subscription tier.
+
+        Returns:
+            True if key was found and updated.
+        """
+        conn = self._get_connection()
+        cursor = conn.execute(
+            "UPDATE api_keys SET tier = ? WHERE key_id = ?",
+            (tier.value, key_id),
+        )
+        conn.commit()
+        updated = cursor.rowcount > 0
+        if updated:
+            logger.info("API key tier updated", key_id=key_id, tier=tier.value)
+        return updated
+
+    def update_subscription_status(self, key_id: str, subscription_status: str) -> bool:
+        """Update the subscription status for an API key.
+
+        Valid statuses mirror Stripe: active, trialing, past_due, canceled, unpaid.
+
+        Args:
+            key_id: The key ID to update.
+            subscription_status: New status string.
+
+        Returns:
+            True if key was found and updated.
+        """
+        conn = self._get_connection()
+        cursor = conn.execute(
+            "UPDATE api_keys SET subscription_status = ? WHERE key_id = ?",
+            (subscription_status, key_id),
+        )
+        conn.commit()
+        updated = cursor.rowcount > 0
+        if updated:
+            logger.info(
+                "API key subscription status updated",
+                key_id=key_id,
+                subscription_status=subscription_status,
+            )
+        return updated
+
+    def set_stripe_customer(
+        self,
+        key_id: str,
+        stripe_customer_id: str,
+        stripe_subscription_id: str | None = None,
+    ) -> bool:
+        """Associate a Stripe customer ID with an API key.
+
+        Called on successful checkout to link the key to the Stripe customer
+        record so future webhook events (payment failure, cancellation) can
+        look up the correct key.
+
+        Args:
+            key_id: The key ID to update.
+            stripe_customer_id: Stripe customer ID (cus_xxx).
+            stripe_subscription_id: Stripe subscription ID (sub_xxx), optional.
+
+        Returns:
+            True if key was found and updated.
+        """
+        conn = self._get_connection()
+        cursor = conn.execute(
+            """
+            UPDATE api_keys
+            SET stripe_customer_id = ?, stripe_subscription_id = ?
+            WHERE key_id = ?
+            """,
+            (stripe_customer_id, stripe_subscription_id, key_id),
+        )
+        conn.commit()
+        updated = cursor.rowcount > 0
+        if updated:
+            logger.info(
+                "API key Stripe customer linked",
+                key_id=key_id,
+                stripe_customer_id=stripe_customer_id,
+            )
+        return updated
+
+    def get_key_by_stripe_customer(self, stripe_customer_id: str) -> APIKeyRecord | None:
+        """Look up an API key record by its associated Stripe customer ID.
+
+        Used by webhook handlers to resolve customer events back to internal
+        key records.
+
+        Args:
+            stripe_customer_id: Stripe customer ID (cus_xxx).
+
+        Returns:
+            APIKeyRecord if found, None otherwise.
+        """
+        conn = self._get_connection()
+        cursor = conn.execute(
+            "SELECT * FROM api_keys WHERE stripe_customer_id = ? AND is_active = 1",
+            (stripe_customer_id,),
         )
         row = cursor.fetchone()
         if row is None:

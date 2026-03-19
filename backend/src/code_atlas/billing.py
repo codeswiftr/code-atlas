@@ -15,7 +15,9 @@ from typing import Any
 import stripe
 from fastapi import APIRouter, Header, HTTPException, Request, status
 
+from .auth.api_keys import get_key_manager
 from .logging_config import get_logger
+from .schemas.auth import APITier
 
 logger = get_logger(__name__)
 
@@ -334,73 +336,197 @@ async def stripe_webhook(
 async def _handle_checkout_completed(session: stripe.checkout.Session) -> None:
     """Handle successful checkout - upgrade user to paid tier.
 
-    In production this would:
-    1. Lookup user by email or user_id in metadata
-    2. Update user's tier in database
-    3. Create subscription record
-    4. Send confirmation email
+    Looks up the API key by the user_id stored in subscription metadata,
+    upgrades its tier, links the Stripe customer ID for future webhook lookups,
+    and marks the subscription as active.
     """
     metadata = session.metadata or {}
-    tier = metadata.get("tier", "unknown")
-    user_id = metadata.get("user_id", "unknown")
+    tier_str = metadata.get("tier", "")
+    user_id = metadata.get("user_id", "")
     customer_id = session.customer
+    subscription_id = session.subscription
 
     logger.info(
         "Checkout completed - upgrading tier",
         user_id=user_id,
-        tier=tier,
+        tier=tier_str,
         customer_id=customer_id,
         session_id=session.id,
     )
 
-    # TODO: In production, update user in database
-    # For MVP, log and track via PostHog or similar
-    # Example:
-    # user = await get_user_by_id(user_id)
-    # user.tier = tier
-    # user.stripe_customer_id = customer_id
-    # await user.save()
+    if not user_id or user_id == "anonymous":
+        logger.warning(
+            "Checkout completed but user_id missing in metadata — cannot update tier",
+            session_id=session.id,
+        )
+        return
+
+    try:
+        new_tier = APITier(tier_str)
+    except ValueError:
+        logger.error(
+            "Checkout completed with unrecognised tier — defaulting to PRO",
+            tier=tier_str,
+            user_id=user_id,
+        )
+        new_tier = APITier.PRO
+
+    key_manager = get_key_manager()
+    tier_updated = key_manager.update_tier(user_id, new_tier)
+    key_manager.update_subscription_status(user_id, "active")
+    key_manager.set_stripe_customer(user_id, customer_id or "", subscription_id or None)
+
+    if tier_updated:
+        logger.info(
+            "User tier upgraded in database",
+            user_id=user_id,
+            new_tier=new_tier.value,
+            customer_id=customer_id,
+        )
+    else:
+        logger.warning(
+            "Checkout completed but API key not found in database",
+            user_id=user_id,
+            customer_id=customer_id,
+        )
 
 
 async def _handle_subscription_updated(subscription: stripe.Subscription) -> None:
-    """Handle subscription updates (plan changes, renewals)."""
+    """Handle subscription updates (plan changes, status changes, renewals).
+
+    Syncs the Stripe subscription status (active/trialing/past_due/canceled/unpaid)
+    into the local api_keys record. When status becomes 'canceled' or 'unpaid' the
+    key is downgraded to the free tier so rate limiting takes effect immediately.
+    """
     metadata = subscription.metadata or {}
-    user_id = metadata.get("user_id", "unknown")
-    status = subscription.status
+    user_id = metadata.get("user_id", "")
+    new_status = subscription.status  # e.g. active, past_due, canceled, trialing
+    customer_id = subscription.customer
 
     logger.info(
         "Subscription updated",
         user_id=user_id,
-        status=status,
+        status=new_status,
         subscription_id=subscription.id,
+        customer_id=customer_id,
     )
 
-    # TODO: Update subscription status in database
-    # Handle status: active, past_due, canceled, etc.
+    key_manager = get_key_manager()
+
+    # Resolve the API key: prefer user_id from metadata, fall back to Stripe customer ID
+    record = None
+    if user_id and user_id != "unknown":
+        record = key_manager.get_key(user_id)
+    if record is None and customer_id:
+        record = key_manager.get_key_by_stripe_customer(customer_id)
+
+    if record is None:
+        logger.warning(
+            "Subscription updated but no matching API key found",
+            user_id=user_id,
+            customer_id=customer_id,
+            subscription_id=subscription.id,
+        )
+        return
+
+    key_manager.update_subscription_status(record.key_id, new_status)
+
+    # Downgrade to free on terminal statuses so rate limiting applies immediately
+    if new_status in ("canceled", "unpaid"):
+        key_manager.update_tier(record.key_id, APITier.FREE)
+        logger.info(
+            "Subscription terminal — key downgraded to free tier",
+            key_id=record.key_id,
+            status=new_status,
+        )
+    else:
+        logger.info(
+            "Subscription status synced",
+            key_id=record.key_id,
+            status=new_status,
+        )
 
 
 async def _handle_subscription_deleted(subscription: stripe.Subscription) -> None:
-    """Handle subscription cancellation - downgrade to free."""
+    """Handle subscription cancellation — downgrade key to free tier.
+
+    Stripe fires this event when a subscription is permanently deleted (end of
+    billing period after cancellation, or immediate cancellation). The key is
+    downgraded to free and the subscription status set to 'canceled'.
+    """
     metadata = subscription.metadata or {}
-    user_id = metadata.get("user_id", "unknown")
+    user_id = metadata.get("user_id", "")
+    customer_id = subscription.customer
 
     logger.info(
         "Subscription canceled - downgrading to free",
         user_id=user_id,
         subscription_id=subscription.id,
+        customer_id=customer_id,
     )
 
-    # TODO: Downgrade user to free tier in database
+    key_manager = get_key_manager()
+
+    record = None
+    if user_id and user_id != "unknown":
+        record = key_manager.get_key(user_id)
+    if record is None and customer_id:
+        record = key_manager.get_key_by_stripe_customer(customer_id)
+
+    if record is None:
+        logger.warning(
+            "Subscription deleted but no matching API key found",
+            user_id=user_id,
+            customer_id=customer_id,
+            subscription_id=subscription.id,
+        )
+        return
+
+    key_manager.update_tier(record.key_id, APITier.FREE)
+    key_manager.update_subscription_status(record.key_id, "canceled")
+    logger.info(
+        "Key downgraded to free tier after cancellation",
+        key_id=record.key_id,
+        customer_id=customer_id,
+    )
 
 
 async def _handle_payment_failed(invoice: stripe.Invoice) -> None:
-    """Handle failed payment - mark subscription past_due."""
+    """Handle failed payment — mark subscription as past_due.
+
+    Stripe retries failed payments automatically (Smart Retries / Dunning). We
+    mark the key as past_due immediately so the application can surface a
+    warning banner, but we do NOT downgrade the tier yet — Stripe will send
+    customer.subscription.updated with status='unpaid' (or 'canceled') if
+    retries are exhausted, at which point _handle_subscription_updated will
+    perform the tier downgrade.
+    """
     customer_id = invoice.customer
+    invoice_id = invoice.id
+    attempt_count = getattr(invoice, "attempt_count", None)
 
     logger.warning(
-        "Payment failed",
+        "Payment failed — marking subscription past_due",
         customer_id=customer_id,
-        invoice_id=invoice.id,
+        invoice_id=invoice_id,
+        attempt_count=attempt_count,
     )
 
-    # TODO: Mark subscription as past_due, notify user
+    key_manager = get_key_manager()
+    record = key_manager.get_key_by_stripe_customer(customer_id) if customer_id else None
+
+    if record is None:
+        logger.warning(
+            "Payment failed but no matching API key found for customer",
+            customer_id=customer_id,
+            invoice_id=invoice_id,
+        )
+        return
+
+    key_manager.update_subscription_status(record.key_id, "past_due")
+    logger.info(
+        "Key subscription status set to past_due — tier preserved pending Stripe retries",
+        key_id=record.key_id,
+        customer_id=customer_id,
+        attempt_count=attempt_count,
+    )
