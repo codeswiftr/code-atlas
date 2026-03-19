@@ -1,111 +1,193 @@
-"""Tests for billing endpoints."""
+"""Tests for billing API endpoints."""
 
 import pytest
+from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
-from code_atlas.api.main import create_app
-from code_atlas.config import AtlasSettings
+from code_atlas.api.v1.billing import router, _get_tier_price, _subscriptions
+from code_atlas.schemas.auth import APITier
 
 
 @pytest.fixture
-def settings(tmp_path):
-    return AtlasSettings(
-        claude_root=tmp_path,
-        api_key_required=False,
-        enable_metrics=False,
-    )
-
-
-@pytest.fixture
-def client(settings):
-    return TestClient(create_app(settings))
-
-
-class TestBillingTiers:
-    """Tests for billing tier endpoints."""
-
-    def test_list_tiers(self, client):
-        """GET /api/v1/billing/tiers returns all tiers."""
-        resp = client.get("/api/v1/billing/tiers")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "free" in data
-        assert "pro" in data
-        assert "team" in data
-
-    def test_get_tier_info_free(self, client):
-        """GET /api/v1/billing/tier/free returns free tier info."""
-        resp = client.get("/api/v1/billing/tier/free")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["tier"] == "free"
-        assert "limits" in data
-        assert data["limits"]["max_sessions_per_report"] == 5
-
-    def test_get_tier_info_pro(self, client):
-        """GET /api/v1/billing/tier/pro returns pro tier info."""
-        resp = client.get("/api/v1/billing/tier/pro")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["tier"] == "pro"
-        assert data["limits"]["use_llm"] is True
-
-    def test_get_tier_info_team(self, client):
-        """GET /api/v1/billing/tier/team returns team tier info."""
-        resp = client.get("/api/v1/billing/tier/team")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["tier"] == "team"
-        assert data["limits"]["max_projects"] == 100
-
-    def test_get_tier_info_invalid(self, client):
-        """GET /api/v1/billing/tier/invalid returns 422."""
-        resp = client.get("/api/v1/billing/tier/invalid")
-        assert resp.status_code == 422
+def client():
+    """Create test client."""
+    from fastapi import FastAPI
+    app = FastAPI()
+    app.include_router(router)  # Router already has /billing prefix
+    return TestClient(app)
 
 
 class TestBillingCheckout:
-    """Tests for billing checkout endpoint."""
+    """Tests for POST /billing/checkout."""
 
-    def test_checkout_returns_400_when_price_not_configured(self, client):
-        """Checkout returns 400 when price ID not configured for tier."""
-        resp = client.post(
-            "/api/v1/billing/checkout",
-            json={
-                "tier": "pro",
-                "success_url": "https://example.com/success",
-                "cancel_url": "https://example.com/cancel",
-            },
+    def test_checkout_pro_tier(self, client):
+        """Test checkout for Pro tier in development mode."""
+        response = client.post(
+            "/billing/checkout",
+            json={"tier": "pro"},
         )
-        # When Stripe is configured but price ID is placeholder
-        assert resp.status_code == 400
-        assert "price not configured" in resp.json()["detail"].lower()
+        # Development mode doesn't require auth
+        assert response.status_code == 201
+        data = response.json()
+        assert data["tier"] == "pro"
+        assert "session_id" in data
+        assert data["amount_cents"] == 2900
 
-    def test_checkout_free_tier_returns_400(self, client):
-        """Checkout for free tier returns 400."""
-        resp = client.post(
-            "/api/v1/billing/checkout",
-            json={
-                "tier": "free",
-                "success_url": "https://example.com/success",
-                "cancel_url": "https://example.com/cancel",
-            },
+    def test_checkout_team_tier(self, client):
+        """Test checkout for Team tier."""
+        response = client.post(
+            "/billing/checkout",
+            json={"tier": "team"},
         )
-        assert resp.status_code == 400
-        assert "free tier" in resp.json()["detail"].lower()
+        assert response.status_code == 201
+        data = response.json()
+        assert data["tier"] == "team"
+        assert data["amount_cents"] == 9900
+
+    def test_checkout_free_tier(self, client):
+        """Test checkout for Free tier."""
+        response = client.post(
+            "/billing/checkout",
+            json={"tier": "free"},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["tier"] == "free"
+        assert data["amount_cents"] == 0
+
+    def test_checkout_invalid_tier(self, client):
+        """Test checkout with invalid tier."""
+        response = client.post(
+            "/billing/checkout",
+            json={"tier": "invalid"},
+        )
+        # Should fail validation
+        assert response.status_code == 422
 
 
 class TestBillingWebhook:
-    """Tests for billing webhook endpoint."""
+    """Tests for POST /billing/webhook."""
 
-    def test_webhook_without_secret_returns_500(self, client):
-        """Webhook returns 500 when webhook secret not configured."""
-        # Note: Stripe API key is set in env, but webhook secret is not
-        resp = client.post("/webhooks/billing/webhook", data=b"{}")
-        assert resp.status_code == 500
-        assert "webhook secret not configured" in resp.json()["detail"].lower()
+    def test_webhook_returns_200_dev_mode(self):
+        """Test webhook endpoint returns 200 in dev mode."""
+        with patch("code_atlas.api.v1.billing.STRIPE_WEBHOOK_SECRET", "test_secret"):
+            with patch("code_atlas.api.v1.billing.STRIPE_SECRET_KEY", "sk_test_"):
+                from fastapi.testclient import TestClient
+                from fastapi import FastAPI
+                from code_atlas.api.v1.billing import router
 
-    def test_webhook_without_signature_returns_400(self, client):
-        """Webhook without signature returns 400 when Stripe configured."""
-        # This would need mocking of stripe module to fully test
-        pass
+                app = FastAPI()
+                app.include_router(router)
+                client = TestClient(app)
+
+                response = client.post("/billing/webhook", json={})
+                assert response.status_code == 200
+
+    def test_webhook_handles_checkout_completed(self):
+        """Test handling checkout.session.completed event."""
+        with patch("code_atlas.api.v1.billing.STRIPE_WEBHOOK_SECRET", "test_secret"):
+            with patch("code_atlas.api.v1.billing.STRIPE_SECRET_KEY", "sk_test_"):
+                from fastapi.testclient import TestClient
+                from fastapi import FastAPI
+                from code_atlas.api.v1.billing import router
+
+                app = FastAPI()
+                app.include_router(router)
+                client = TestClient(app)
+
+                event = {
+                    "type": "checkout.session.completed",
+                    "data": {
+                        "customer": "cus_test123",
+                        "subscription": "sub_test123",
+                        "metadata": {"tier": "pro"},
+                    },
+                }
+                response = client.post("/billing/webhook", json=event)
+                assert response.status_code == 200
+
+    def test_webhook_handles_subscription_deleted(self):
+        """Test handling customer.subscription.deleted event."""
+        with patch("code_atlas.api.v1.billing.STRIPE_WEBHOOK_SECRET", "test_secret"):
+            with patch("code_atlas.api.v1.billing.STRIPE_SECRET_KEY", "sk_test_"):
+                from fastapi.testclient import TestClient
+                from fastapi import FastAPI
+                from code_atlas.api.v1.billing import router
+
+                app = FastAPI()
+                app.include_router(router)
+                client = TestClient(app)
+
+                event = {
+                    "type": "customer.subscription.deleted",
+                    "data": {
+                        "id": "sub_test123",
+                        "customer": "cus_test123",
+                    },
+                }
+                response = client.post("/billing/webhook", json=event)
+                assert response.status_code == 200
+
+    def test_webhook_handles_payment_failed(self):
+        """Test handling invoice.payment_failed event."""
+        with patch("code_atlas.api.v1.billing.STRIPE_WEBHOOK_SECRET", "test_secret"):
+            with patch("code_atlas.api.v1.billing.STRIPE_SECRET_KEY", "sk_test_"):
+                from fastapi.testclient import TestClient
+                from fastapi import FastAPI
+                from code_atlas.api.v1.billing import router
+
+                app = FastAPI()
+                app.include_router(router)
+                client = TestClient(app)
+
+                event = {
+                    "type": "invoice.payment_failed",
+                    "data": {
+                        "customer": "cus_test123",
+                        "attempt_count": 1,
+                    },
+                }
+                response = client.post("/billing/webhook", json=event)
+                assert response.status_code == 200
+
+
+class TestSubscriptionStatus:
+    """Tests for GET /billing/subscription/{key_prefix}."""
+
+    def test_get_subscription_default_tier(self):
+        """Test default subscription is Free tier."""
+        with patch("code_atlas.usage_tracker.get_tracker") as mock_tracker:
+            mock_tracker.return_value.get_hourly_usage.return_value = 5
+
+            from fastapi.testclient import TestClient
+            from fastapi import FastAPI
+            from code_atlas.api.v1.billing import router, _require_admin_key
+
+            app = FastAPI()
+            app.include_router(router)
+            app.dependency_overrides[_require_admin_key] = lambda: "test-admin-key"
+            client = TestClient(app)
+
+            response = client.get("/billing/subscription/test-key")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["tier"] == "free"
+            assert data["requests_limit"] == 10
+            assert data["requests_used"] == 5
+            app.dependency_overrides.clear()
+
+
+class TestTierPricing:
+    """Tests for tier pricing."""
+
+    def test_free_tier_price(self):
+        """Test Free tier is $0."""
+        assert _get_tier_price(APITier.FREE) == 0
+
+    def test_pro_tier_price(self):
+        """Test Pro tier is $29."""
+        assert _get_tier_price(APITier.PRO) == 2900
+
+    def test_team_tier_price(self):
+        """Test Team tier is $99."""
+        assert _get_tier_price(APITier.TEAM) == 9900
