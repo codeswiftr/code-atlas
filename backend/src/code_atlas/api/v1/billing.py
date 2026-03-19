@@ -5,6 +5,7 @@ Provides checkout sessions, webhook handling, and subscription management.
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import UTC, datetime
 from typing import Any
@@ -199,8 +200,11 @@ async def stripe_webhook(
                 detail="Invalid webhook signature",
             )
     else:
-        # Development mode - skip signature verification
-        event = payload
+        # Development mode - skip signature verification; parse JSON payload
+        try:
+            event = json.loads(payload)
+        except (json.JSONDecodeError, ValueError):
+            event = {}
         logger.debug("Webhook received in development mode")
 
     # Handle different event types
