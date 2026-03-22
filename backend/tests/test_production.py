@@ -186,12 +186,17 @@ class TestGitHubActions:
         assert "backend-lint:" in content, "Missing lint job"
         assert "ruff" in content, "Should run ruff"
 
-    def test_cd_workflow_builds_docker(self):
-        """Verify CD workflow builds Docker image."""
+    def test_cd_workflow_deploys(self):
+        """Verify CD workflow deploys to Railway and Cloudflare."""
         workflow = PROJECT_ROOT / ".github" / "workflows" / "cd.yml"
+        assert workflow.exists(), "cd.yml workflow not found"
         content = workflow.read_text()
-        assert "docker" in content.lower(), "Should build Docker image"
-        assert "ghcr.io" in content, "Should push to GitHub Container Registry"
+        # Workflow must be valid YAML with a name and triggers
+        assert "name:" in content, "Workflow should have a name"
+        assert "branches: [main]" in content, "Should trigger on main branch push"
+        # Deployment targets: Railway (backend) and Cloudflare Pages (frontend)
+        assert "railway" in content.lower(), "Should deploy to Railway"
+        assert "cloudflare" in content.lower(), "Should deploy to Cloudflare"
 
 
 class TestProductionConfiguration:
