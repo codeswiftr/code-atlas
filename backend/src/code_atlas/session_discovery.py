@@ -105,29 +105,29 @@ class SessionDiscovery:
     def _iter_session_files(self) -> Iterator[Path]:
         pattern = "*.jsonl"
         session_dir_name = os.environ.get("CODE_ATLAS_SESSION_DIR", "sessions")
-        
+
         # If CODE_ATLAS_SESSION_DIR is explicitly set, require it in the path
         # Otherwise, allow files directly in project directories OR in sessions subdirectory
         require_sessions_dir = "CODE_ATLAS_SESSION_DIR" in os.environ
-        
+
         for path in sorted(self.root.rglob(pattern)):
             # Skip if sessions directory is required but not found in path
             if require_sessions_dir and session_dir_name not in path.parts:
                 continue
-            
+
             # Skip if path is too deep (more than 2 levels from root: project/sessions/file.jsonl)
             # This prevents matching files in nested subdirectories
             rel_path = path.relative_to(self.root)
             depth = len(rel_path.parts)
-            
+
             # Allow: project/file.jsonl (depth=2) or project/sessions/file.jsonl (depth=3)
             if depth > 3:
                 continue
-            
+
             # If depth is 3, verify it's in a sessions subdirectory
             if depth == 3 and session_dir_name not in path.parts:
                 continue
-            
+
             yield path
 
     def _build_metadata(self, path: Path) -> SessionMetadata:

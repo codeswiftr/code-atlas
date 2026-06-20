@@ -240,13 +240,14 @@ class InsightExtractor:
     def _null_context_manager(self):
         """Null context manager for when metrics are disabled."""
         from contextlib import nullcontext
+
         return nullcontext()
 
     def _calculate_cost(
         self, input_tokens: int, output_tokens: int, response: Any | None = None
     ) -> float:
         """Calculate API cost based on actual token usage and model pricing.
-        
+
         For OpenRouter, uses LiteLLM's completion_cost if response is provided.
         For Anthropic, uses hardcoded pricing constants.
         """
@@ -299,9 +300,7 @@ class InsightExtractor:
 
             # Validate insights (simple list of strings)
             insights = data.get("insights", [])
-            if not isinstance(insights, list) or not all(
-                isinstance(i, str) for i in insights
-            ):
+            if not isinstance(insights, list) or not all(isinstance(i, str) for i in insights):
                 raise ValueError("Insights must be a list of strings")
 
             return ExtractionResult(
@@ -390,9 +389,7 @@ class InsightExtractor:
             chunk_session = ParsedSession(
                 metadata=session.metadata,
                 messages=chunk_messages,
-                total_tokens=sum(
-                    self._estimate_tokens(msg.text) for msg in chunk_messages
-                ),
+                total_tokens=sum(self._estimate_tokens(msg.text) for msg in chunk_messages),
                 referenced_files=session.referenced_files,
             )
 
@@ -645,7 +642,7 @@ class InsightExtractor:
                 file_path = next((g for g in match_groups if g), None)
                 if file_path and file_path not in seen_files:
                     # Filter out common non-file patterns
-                    if not any(x in file_path.lower() for x in ['.com/', '.org/', '.io/', 'http']):
+                    if not any(x in file_path.lower() for x in [".com/", ".org/", ".io/", "http"]):
                         seen_files.add(file_path)
                         entities.append(
                             Entity(
@@ -666,9 +663,7 @@ class InsightExtractor:
 
         # Add insight about file count
         if len(entities) > 0:
-            insights.append(
-                f"Session referenced {len(entities)} unique files."
-            )
+            insights.append(f"Session referenced {len(entities)} unique files.")
 
         return ExtractionResult(
             entities=entities,
@@ -705,9 +700,7 @@ class InsightExtractor:
                 # Start new chunk with last 2 messages for overlap
                 overlap_size = min(2, len(current_chunk))
                 current_chunk = current_chunk[-overlap_size:]
-                current_tokens = sum(
-                    self._estimate_tokens(msg.text) for msg in current_chunk
-                )
+                current_tokens = sum(self._estimate_tokens(msg.text) for msg in current_chunk)
 
             current_chunk.append(message)
             current_tokens += message_tokens
@@ -734,9 +727,7 @@ class InsightExtractor:
             f"Session snippets:\n{joined}"
         )
 
-    def _merge_extractions(
-        self, results: list[ExtractionResult]
-    ) -> ExtractionResult:
+    def _merge_extractions(self, results: list[ExtractionResult]) -> ExtractionResult:
         """Merge and deduplicate entities from multiple chunks."""
         if not results:
             return ExtractionResult()

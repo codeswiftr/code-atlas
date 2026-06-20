@@ -56,6 +56,7 @@ def get_graph_store(settings=None):  # type: ignore[no-untyped-def]
     """
     if settings is None:
         from ..config import AtlasSettings
+
         settings = AtlasSettings()
 
     # Honour explicit GRAPH_BACKEND override

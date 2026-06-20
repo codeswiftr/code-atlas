@@ -123,7 +123,7 @@ class FalkorDBVectorStore(VectorStore):
         query = f"""
             MATCH (e:{entity_type} {{id: $entity_id}})
             SET e.embedding = $embedding
-            {', e.embedding_metadata = $metadata' if metadata else ''}
+            {", e.embedding_metadata = $metadata" if metadata else ""}
         """
         params: dict[str, Any] = {
             "entity_id": entity_id,

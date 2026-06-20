@@ -29,7 +29,7 @@ class MetricsServer:
             title="Code Atlas Metrics",
             description="Monitoring and metrics for Code Atlas pipeline",
             version="1.0.0",
-            lifespan=self.lifespan
+            lifespan=self.lifespan,
         )
         self._setup_routes()
         self._server_task: asyncio.Task | None = None
@@ -63,9 +63,7 @@ class MetricsServer:
                 return self.metrics.get_metrics_text()
             except Exception as exc:
                 logger.error(
-                    "Error generating metrics",
-                    error=str(exc),
-                    error_type=type(exc).__name__
+                    "Error generating metrics", error=str(exc), error_type=type(exc).__name__
                 )
                 raise HTTPException(status_code=500, detail="Failed to generate metrics") from exc
 
@@ -75,7 +73,7 @@ class MetricsServer:
             return {
                 "status": "healthy",
                 "timestamp": datetime.now(tz=UTC).isoformat(),
-                "service": "code-atlas-metrics"
+                "service": "code-atlas-metrics",
             }
 
         @self.app.get(self.settings.status_path)
@@ -84,7 +82,7 @@ class MetricsServer:
             try:
                 # Get system information
                 memory = psutil.virtual_memory()
-                disk = psutil.disk_usage('/')
+                disk = psutil.disk_usage("/")
                 process = psutil.Process()
 
                 status = {
@@ -98,13 +96,13 @@ class MetricsServer:
                             "total_bytes": memory.total,
                             "available_bytes": memory.available,
                             "used_bytes": memory.used,
-                            "percent_used": memory.percent
+                            "percent_used": memory.percent,
                         },
                         "disk": {
                             "total_bytes": disk.total,
                             "used_bytes": disk.used,
                             "free_bytes": disk.free,
-                            "percent_used": (disk.used / disk.total) * 100
+                            "percent_used": (disk.used / disk.total) * 100,
                         },
                         "process": {
                             "pid": process.pid,
@@ -113,25 +111,21 @@ class MetricsServer:
                             "num_threads": process.num_threads(),
                             "create_time": datetime.fromtimestamp(
                                 process.create_time(), tz=UTC
-                            ).isoformat()
-                        }
+                            ).isoformat(),
+                        },
                     },
                     "config": {
                         "metrics_host": self.settings.metrics_host,
                         "metrics_port": self.settings.metrics_port,
                         "metrics_interval": self.settings.metrics_collection_interval,
-                        "prometheus_namespace": self.settings.prometheus_namespace
-                    }
+                        "prometheus_namespace": self.settings.prometheus_namespace,
+                    },
                 }
 
                 return status
 
             except Exception as exc:
-                logger.error(
-                    "Error getting status",
-                    error=str(exc),
-                    error_type=type(exc).__name__
-                )
+                logger.error("Error getting status", error=str(exc), error_type=type(exc).__name__)
                 raise HTTPException(status_code=500, detail="Failed to get status") from exc
 
         @self.app.get("/")
@@ -143,8 +137,8 @@ class MetricsServer:
                 "endpoints": {
                     "metrics": self.settings.metrics_path,
                     "health": self.settings.health_path,
-                    "status": self.settings.status_path
-                }
+                    "status": self.settings.status_path,
+                },
             }
 
     async def start(self) -> None:
@@ -158,7 +152,7 @@ class MetricsServer:
         logger.info(
             "Starting metrics server",
             host=self.settings.metrics_host,
-            port=self.settings.metrics_port
+            port=self.settings.metrics_port,
         )
 
         config = uvicorn.Config(
@@ -166,7 +160,7 @@ class MetricsServer:
             host=self.settings.metrics_host,
             port=self.settings.metrics_port,
             log_level="info",
-            access_log=True
+            access_log=True,
         )
 
         server = uvicorn.Server(config)
@@ -182,11 +176,7 @@ class MetricsServer:
         try:
             await server.serve()
         except Exception as exc:
-            logger.error(
-                "Metrics server error",
-                error=str(exc),
-                error_type=type(exc).__name__
-            )
+            logger.error("Metrics server error", error=str(exc), error_type=type(exc).__name__)
             raise
 
     def run(self) -> None:
@@ -200,11 +190,7 @@ class MetricsServer:
         except KeyboardInterrupt:
             logger.info("Metrics server stopped by user")
         except Exception as exc:
-            logger.error(
-                "Metrics server failed",
-                error=str(exc),
-                error_type=type(exc).__name__
-            )
+            logger.error("Metrics server failed", error=str(exc), error_type=type(exc).__name__)
             sys.exit(1)
 
 

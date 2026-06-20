@@ -37,9 +37,7 @@ def make_session(
         size_bytes=1024,
         modified_at=datetime.now(tz=UTC),
     )
-    messages = [
-        make_message(f"m{i}", text_size=message_size) for i in range(message_count)
-    ]
+    messages = [make_message(f"m{i}", text_size=message_size) for i in range(message_count)]
     return ParsedSession(
         metadata=metadata,
         messages=messages,

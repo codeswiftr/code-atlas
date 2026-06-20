@@ -34,14 +34,14 @@ class TestMetricsServer:
             metrics_path="/metrics",
             health_path="/health",
             status_path="/status",
-            prometheus_namespace="test_server"
+            prometheus_namespace="test_server",
         )
         self.server = MetricsServer(self.settings)
         self.client = TestClient(self.server.app)
 
     def teardown_method(self) -> None:
         """Clean up test fixtures."""
-        if hasattr(self.server, 'metrics') and self.server.metrics:
+        if hasattr(self.server, "metrics") and self.server.metrics:
             self.server.metrics.stop_collection()
 
     def test_server_initialization(self) -> None:
@@ -63,7 +63,7 @@ class TestMetricsServer:
         assert data["endpoints"]["health"] == "/health"
         assert data["endpoints"]["status"] == "/status"
 
-    @patch('code_atlas.metrics.AtlasMetrics.get_metrics_text')
+    @patch("code_atlas.metrics.AtlasMetrics.get_metrics_text")
     def test_metrics_endpoint_enabled(self, mock_get_metrics) -> None:
         """Test metrics endpoint when enabled."""
         mock_get_metrics.return_value = "# HELP test_metric A test metric\ntest_metric 42"
@@ -84,7 +84,7 @@ class TestMetricsServer:
         assert response.status_code == 503
         assert "Metrics collection is disabled" in response.json()["detail"]
 
-    @patch('code_atlas.metrics.AtlasMetrics.get_metrics_text')
+    @patch("code_atlas.metrics.AtlasMetrics.get_metrics_text")
     def test_metrics_endpoint_error(self, mock_get_metrics) -> None:
         """Test metrics endpoint error handling."""
         mock_get_metrics.side_effect = Exception("Metrics generation failed")
@@ -103,7 +103,7 @@ class TestMetricsServer:
         assert "timestamp" in data
         assert data["service"] == "code-atlas-metrics"
 
-    @patch('code_atlas.server.psutil')
+    @patch("code_atlas.server.psutil")
     def test_status_endpoint(self, mock_psutil) -> None:
         """Test detailed status endpoint."""
         # Mock psutil values
@@ -160,7 +160,7 @@ class TestMetricsServer:
         assert config["metrics_interval"] == 30
         assert config["prometheus_namespace"] == "test_server"
 
-    @patch('code_atlas.server.psutil')
+    @patch("code_atlas.server.psutil")
     def test_status_endpoint_error(self, mock_psutil) -> None:
         """Test status endpoint error handling."""
         mock_psutil.virtual_memory.side_effect = Exception("System info failed")
@@ -170,8 +170,8 @@ class TestMetricsServer:
         assert "Failed to get status" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    @patch('uvicorn.Server')
-    @patch('uvicorn.Config')
+    @patch("uvicorn.Server")
+    @patch("uvicorn.Config")
     async def test_start_method(self, mock_config_class, mock_server_class) -> None:
         """Test async start method."""
         mock_config = Mock()
@@ -190,7 +190,7 @@ class TestMetricsServer:
             host=self.settings.metrics_host,
             port=self.settings.metrics_port,
             log_level="info",
-            access_log=True
+            access_log=True,
         )
 
         # Verify server was created and started
@@ -199,7 +199,7 @@ class TestMetricsServer:
 
     def test_run_method(self) -> None:
         """Test synchronous run method."""
-        with patch('code_atlas.server.asyncio.run') as mock_run:
+        with patch("code_atlas.server.asyncio.run") as mock_run:
             self.server.run()
             mock_run.assert_called_once()
             # Verify the argument is a coroutine from start()
@@ -207,8 +207,8 @@ class TestMetricsServer:
             assert asyncio.iscoroutine(args[0])
 
     @pytest.mark.asyncio
-    @patch('uvicorn.Server')
-    @patch('uvicorn.Config')
+    @patch("uvicorn.Server")
+    @patch("uvicorn.Config")
     async def test_start_disabled_metrics(self, mock_config_class, mock_server_class) -> None:
         """Test start method when metrics are disabled."""
         disabled_settings = AtlasSettings(enable_metrics=False)
@@ -222,9 +222,9 @@ class TestMetricsServer:
         mock_server_class.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch('code_atlas.server.signal.signal')
-    @patch('uvicorn.Server')
-    @patch('uvicorn.Config')
+    @patch("code_atlas.server.signal.signal")
+    @patch("uvicorn.Server")
+    @patch("uvicorn.Config")
     async def test_signal_handlers(
         self, mock_config_class, mock_server_class, mock_signal_func
     ) -> None:
@@ -246,8 +246,8 @@ class TestMetricsServer:
         assert signal_module.SIGINT in call_args
 
     @pytest.mark.asyncio
-    @patch('uvicorn.Server')
-    @patch('uvicorn.Config')
+    @patch("uvicorn.Server")
+    @patch("uvicorn.Config")
     async def test_server_shutdown_on_signal(self, mock_config_class, mock_server_class) -> None:
         """Test graceful shutdown on signal."""
         mock_config = Mock()
@@ -261,7 +261,7 @@ class TestMetricsServer:
         def mock_signal_handler(signum, frame):
             mock_server.should_exit = True
 
-        with patch('code_atlas.server.signal.signal', side_effect=lambda sig, handler: None):
+        with patch("code_atlas.server.signal.signal", side_effect=lambda sig, handler: None):
             await self.server.start()
 
     @pytest.mark.asyncio
@@ -283,7 +283,7 @@ class TestMetricsServer:
             data = response.json()
             assert data["status"] == "healthy"
 
-    @patch('code_atlas.metrics.AtlasMetrics.get_metrics_text')
+    @patch("code_atlas.metrics.AtlasMetrics.get_metrics_text")
     def test_metrics_endpoint_prometheus_format(self, mock_get_metrics) -> None:
         """Test that metrics endpoint returns proper Prometheus format."""
         prometheus_output = """
@@ -315,7 +315,7 @@ test_server_system_memory_bytes{type="available"} 2000000000.0
             enable_metrics=True,
             metrics_path="/custom-metrics",
             health_path="/custom-health",
-            status_path="/custom-status"
+            status_path="/custom-status",
         )
 
         custom_server = MetricsServer(custom_settings)
@@ -329,7 +329,7 @@ test_server_system_memory_bytes{type="available"} 2000000000.0
         assert data["endpoints"]["status"] == "/custom-status"
 
         # Test that custom paths are accessible
-        with patch('code_atlas.metrics.AtlasMetrics.get_metrics_text') as mock_metrics:
+        with patch("code_atlas.metrics.AtlasMetrics.get_metrics_text") as mock_metrics:
             mock_metrics.return_value = "# HELP test Test metric\ntest 1"
 
             response = custom_client.get("/custom-metrics")
@@ -360,7 +360,7 @@ class TestServerIntegration:
         settings = AtlasSettings(
             enable_metrics=True,
             metrics_port=8081,  # Use different port to avoid conflicts
-            prometheus_namespace="integration_test"
+            prometheus_namespace="integration_test",
         )
 
         server = MetricsServer(settings)
@@ -401,8 +401,8 @@ class TestServerIntegration:
         server = MetricsServer(settings)
 
         # Test that metrics collection starts/stops during lifespan
-        with patch.object(server.metrics, 'start_collection') as mock_start:
-            with patch.object(server.metrics, 'stop_collection') as mock_stop:
+        with patch.object(server.metrics, "start_collection") as mock_start:
+            with patch.object(server.metrics, "stop_collection") as mock_stop:
                 # Simulate lifespan events
                 async with server.app.router.lifespan_context(server.app):
                     # start_collection should be called on startup
@@ -421,7 +421,7 @@ class TestServerErrorHandling:
         server = MetricsServer(settings)
         client = TestClient(server.app)
 
-        with patch.dict('sys.modules', {'psutil': None}):
+        with patch.dict("sys.modules", {"psutil": None}):
             # This should still work, but status endpoint might fail
             response = client.get("/health")
             assert response.status_code == 200
@@ -436,7 +436,7 @@ class TestServerErrorHandling:
         client = TestClient(server.app)
 
         # Mock metrics generation to fail
-        with patch.object(server.metrics, 'get_metrics_text', side_effect=Exception("Failed")):
+        with patch.object(server.metrics, "get_metrics_text", side_effect=Exception("Failed")):
             response = client.get("/metrics")
             assert response.status_code == 500
             assert "Failed to generate metrics" in response.json()["detail"]

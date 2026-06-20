@@ -8,11 +8,11 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 
 from ...config import AtlasSettings
+from ...insight_extractor import InsightExtractor
 from ...job_store import JobStore, get_job_store
 from ...logging_config import get_logger
-from ...pipeline import PipelineRunner
-from ...insight_extractor import InsightExtractor
 from ...models import SessionMetadata
+from ...pipeline import PipelineRunner
 from ...schemas.sessions import (
     DateRange,
     EntitySummary,
@@ -500,8 +500,7 @@ async def generate_project_report(
 
     # Build ranked outputs.
     top_files = [
-        name
-        for name, _ in sorted(file_mentions.items(), key=lambda x: x[1], reverse=True)[:20]
+        name for name, _ in sorted(file_mentions.items(), key=lambda x: x[1], reverse=True)[:20]
     ]
     top_entities = [
         EntitySummary(name=name, type=etype, mentions=count)

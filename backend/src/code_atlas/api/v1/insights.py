@@ -31,7 +31,7 @@ async def get_top_entities(
     """Get most mentioned entities."""
     try:
         start_time = time.time()
-        
+
         # Build query based on entity type filter
         if entity_type:
             query = f"""
@@ -49,9 +49,9 @@ async def get_top_entities(
                 ORDER BY mentions DESC
                 LIMIT $limit
             """
-        
+
         result = graph.execute_query(query, {"limit": limit})
-        
+
         entities = []
         for row in result:
             node = row.get("e", {})
@@ -60,9 +60,9 @@ async def get_top_entities(
             entity = _parse_node_to_entity(node, node_type)
             entity.mention_count = row.get("mentions", 0)
             entities.append(entity)
-        
+
         execution_time = (time.time() - start_time) * 1000
-        
+
         return {
             "entities": [e.dict() for e in entities],
             "total": len(entities),
@@ -88,7 +88,7 @@ async def get_recurring_problems(
     """Get problems that appear in multiple sessions."""
     try:
         start_time = time.time()
-        
+
         query = """
             MATCH (p:Problem)
             WITH p, count(DISTINCT p.source_session) as session_count
@@ -97,21 +97,23 @@ async def get_recurring_problems(
             ORDER BY session_count DESC, p.mention_count DESC
             LIMIT $limit
         """
-        
+
         result = graph.execute_query(query, {"min_sessions": min_sessions, "limit": limit})
-        
+
         problems = []
         for row in result:
             node = row.get("p", {})
             entity = _parse_node_to_entity(node, "Problem")
             entity.mention_count = row.get("session_count", 0)
-            problems.append({
-                "entity": entity.dict(),
-                "session_count": row.get("session_count", 0),
-            })
-        
+            problems.append(
+                {
+                    "entity": entity.dict(),
+                    "session_count": row.get("session_count", 0),
+                }
+            )
+
         execution_time = (time.time() - start_time) * 1000
-        
+
         return {
             "problems": problems,
             "total": len(problems),
@@ -136,7 +138,7 @@ async def get_popular_tools(
     """Get most used tools."""
     try:
         start_time = time.time()
-        
+
         query = """
             MATCH (t:Tool)-[r:USES]-(e)
             WITH t, count(r) as usage_count
@@ -144,21 +146,23 @@ async def get_popular_tools(
             ORDER BY usage_count DESC
             LIMIT $limit
         """
-        
+
         result = graph.execute_query(query, {"limit": limit})
-        
+
         tools = []
         for row in result:
             node = row.get("t", {})
             entity = _parse_node_to_entity(node, "Tool")
             entity.mention_count = row.get("usage_count", 0)
-            tools.append({
-                "entity": entity.dict(),
-                "usage_count": row.get("usage_count", 0),
-            })
-        
+            tools.append(
+                {
+                    "entity": entity.dict(),
+                    "usage_count": row.get("usage_count", 0),
+                }
+            )
+
         execution_time = (time.time() - start_time) * 1000
-        
+
         return {
             "tools": tools,
             "total": len(tools),
@@ -182,23 +186,25 @@ async def get_concept_relationships(
     """Get relationship patterns between concepts."""
     try:
         start_time = time.time()
-        
+
         query = """
             MATCH (a:Concept)-[r]->(b:Concept)
             WITH type(r) as rel_type, count(r) as count
             ORDER BY count DESC
             LIMIT $limit
         """
-        
+
         result = graph.execute_query(query, {"limit": limit})
-        
+
         relationships = []
         for row in result:
-            relationships.append({
-                "relationship_type": row.get("rel_type", "RELATED_TO"),
-                "count": row.get("count", 0),
-            })
-        
+            relationships.append(
+                {
+                    "relationship_type": row.get("rel_type", "RELATED_TO"),
+                    "count": row.get("count", 0),
+                }
+            )
+
         # Get most connected concept pairs
         pair_query = """
             MATCH (a:Concept)-[r]->(b:Concept)
@@ -208,19 +214,21 @@ async def get_concept_relationships(
             RETURN a.name as source, b.name as target, connection_strength,
                    labels(a) as source_labels, labels(b) as target_labels
         """
-        
+
         pair_result = graph.execute_query(pair_query, {})
-        
+
         pairs = []
         for row in pair_result:
-            pairs.append({
-                "source": row.get("source", ""),
-                "target": row.get("target", ""),
-                "connection_strength": row.get("connection_strength", 0),
-            })
-        
+            pairs.append(
+                {
+                    "source": row.get("source", ""),
+                    "target": row.get("target", ""),
+                    "connection_strength": row.get("connection_strength", 0),
+                }
+            )
+
         execution_time = (time.time() - start_time) * 1000
-        
+
         return {
             "relationship_types": relationships,
             "top_pairs": pairs,
@@ -245,7 +253,7 @@ async def get_trends(
     """Get time-based trends for entity creation."""
     try:
         start_time = time.time()
-        
+
         # Get entities created over time
         query = """
             MATCH (e)
@@ -255,44 +263,46 @@ async def get_trends(
             ORDER BY created_date DESC
             LIMIT 1000
         """
-        
+
         result = graph.execute_query(query, {})
-        
+
         # Group by date and type
         trends_by_date: dict[str, dict[str, int]] = {}
         trends_by_type: dict[str, list[dict[str, Any]]] = {}
-        
+
         cutoff_date = datetime.now(UTC) - timedelta(days=days)
-        
+
         for row in result:
             created_date_str = row.get("created_date", "")
             if not created_date_str:
                 continue
-            
+
             try:
                 created_date = datetime.fromisoformat(created_date_str.replace("Z", "+00:00"))
                 if created_date < cutoff_date:
                     continue
             except (ValueError, AttributeError):
                 continue
-            
+
             date_key = created_date.strftime("%Y-%m-%d")
             entity_type = row.get("entity_type", "Concept")
             count = row.get("entity_count", 0)
-            
+
             if date_key not in trends_by_date:
                 trends_by_date[date_key] = {}
             trends_by_date[date_key][entity_type] = (
                 trends_by_date[date_key].get(entity_type, 0) + count
             )
-            
+
             if entity_type not in trends_by_type:
                 trends_by_type[entity_type] = []
-            trends_by_type[entity_type].append({
-                "date": date_key,
-                "count": count,
-            })
-        
+            trends_by_type[entity_type].append(
+                {
+                    "date": date_key,
+                    "count": count,
+                }
+            )
+
         # Convert to sorted lists
         trend_data = [
             {
@@ -302,9 +312,9 @@ async def get_trends(
             }
             for date, counts in sorted(trends_by_date.items())
         ]
-        
+
         execution_time = (time.time() - start_time) * 1000
-        
+
         return {
             "trends": trend_data,
             "trends_by_type": {
@@ -331,7 +341,7 @@ async def get_insight_report(
     """Generate comprehensive insight report."""
     try:
         start_time = time.time()
-        
+
         # Get top entities
         top_entities_query = """
             MATCH (e)
@@ -348,7 +358,7 @@ async def get_insight_report(
             entity = _parse_node_to_entity(node, labels[0] if labels else "Concept")
             entity.mention_count = row.get("mentions", 0)
             top_entities.append(entity.dict())
-        
+
         # Get recurring problems
         problems_query = """
             MATCH (p:Problem)
@@ -363,11 +373,13 @@ async def get_insight_report(
         for row in problems_result:
             node = row.get("p", {})
             entity = _parse_node_to_entity(node, "Problem")
-            recurring_problems.append({
-                "entity": entity.dict(),
-                "session_count": row.get("session_count", 0),
-            })
-        
+            recurring_problems.append(
+                {
+                    "entity": entity.dict(),
+                    "session_count": row.get("session_count", 0),
+                }
+            )
+
         # Get popular tools
         tools_query = """
             MATCH (t:Tool)-[r:USES]-(e)
@@ -381,11 +393,13 @@ async def get_insight_report(
         for row in tools_result:
             node = row.get("t", {})
             entity = _parse_node_to_entity(node, "Tool")
-            popular_tools.append({
-                "entity": entity.dict(),
-                "usage_count": row.get("usage_count", 0),
-            })
-        
+            popular_tools.append(
+                {
+                    "entity": entity.dict(),
+                    "usage_count": row.get("usage_count", 0),
+                }
+            )
+
         # Get graph stats
         stats_query = """
             MATCH (e)
@@ -393,9 +407,9 @@ async def get_insight_report(
             RETURN node_type, total_nodes
         """
         graph.execute_query(stats_query, {})  # Execute query for completeness
-        
+
         execution_time = (time.time() - start_time) * 1000
-        
+
         return {
             "top_entities": top_entities,
             "recurring_problems": recurring_problems,
@@ -487,4 +501,3 @@ async def rag_query(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"RAG query failed: {str(exc)}",
         ) from exc
-

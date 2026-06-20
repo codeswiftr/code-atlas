@@ -1,8 +1,6 @@
 """Tests for POST /api/v1/sessions/report — project intelligence report endpoint."""
 
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -122,9 +120,16 @@ class TestReportEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         required_fields = [
-            "project_name", "project_path", "sessions_analyzed",
-            "total_messages", "total_tokens", "top_files",
-            "top_entities", "key_insights", "summary", "cost_usd",
+            "project_name",
+            "project_path",
+            "sessions_analyzed",
+            "total_messages",
+            "total_tokens",
+            "top_files",
+            "top_entities",
+            "key_insights",
+            "summary",
+            "cost_usd",
         ]
         for field in required_fields:
             assert field in data, f"Missing field: {field}"

@@ -167,18 +167,14 @@ class SQLiteGraphStore:
     async def get_node(self, node_id: str) -> dict[str, Any] | None:
         """Return a node by ID or ``None``."""
         conn = self._ensure_open()
-        async with conn.execute(
-            "SELECT * FROM graph_nodes WHERE id = ?", (node_id,)
-        ) as cur:
+        async with conn.execute("SELECT * FROM graph_nodes WHERE id = ?", (node_id,)) as cur:
             row = await cur.fetchone()
         return _row_to_node(row) if row else None
 
     async def delete_node(self, node_id: str) -> bool:
         """Delete a node and its incident edges.  Returns True if deleted."""
         conn = self._ensure_open()
-        async with conn.execute(
-            "DELETE FROM graph_nodes WHERE id = ?", (node_id,)
-        ) as cur:
+        async with conn.execute("DELETE FROM graph_nodes WHERE id = ?", (node_id,)) as cur:
             deleted = cur.rowcount > 0
         await conn.commit()
         return deleted
@@ -222,9 +218,7 @@ class SQLiteGraphStore:
     async def delete_edge(self, edge_id: str) -> bool:
         """Delete an edge by ID.  Returns True if deleted."""
         conn = self._ensure_open()
-        async with conn.execute(
-            "DELETE FROM graph_edges WHERE id = ?", (edge_id,)
-        ) as cur:
+        async with conn.execute("DELETE FROM graph_edges WHERE id = ?", (edge_id,)) as cur:
             deleted = cur.rowcount > 0
         await conn.commit()
         return deleted
@@ -585,8 +579,12 @@ class SQLiteGraphStore:
                 row_dict[alias] = row["edge_type"]
 
             # labels(n) / labels(s) / labels(m) / labels(t)
-            for node_alias, node_obj in [("n", src_node), ("s", src_node),
-                                          ("m", tgt_node), ("t", tgt_node)]:
+            for node_alias, node_obj in [
+                ("n", src_node),
+                ("s", src_node),
+                ("m", tgt_node),
+                ("t", tgt_node),
+            ]:
                 lk = f"labels({node_alias})"
                 if lk in return_cols:
                     alias = return_cols[lk]

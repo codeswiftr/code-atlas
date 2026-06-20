@@ -20,14 +20,14 @@ def get_settings() -> AtlasSettings:
 
 
 def get_session_discovery(
-    settings: Annotated[AtlasSettings, Depends(get_settings)]
+    settings: Annotated[AtlasSettings, Depends(get_settings)],
 ) -> SessionDiscovery:
     """Get session discovery instance."""
     return SessionDiscovery(settings)
 
 
 def get_graph_populator(
-    settings: Annotated[AtlasSettings, Depends(get_settings)]
+    settings: Annotated[AtlasSettings, Depends(get_settings)],
 ) -> GraphPopulator:
     """Get graph populator instance."""
     return GraphPopulator(

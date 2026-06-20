@@ -115,9 +115,7 @@ class SessionProcessRequest(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "session_paths": [
-                    "/Users/user/.claude/projects/my-project/session-abc123.jsonl"
-                ],
+                "session_paths": ["/Users/user/.claude/projects/my-project/session-abc123.jsonl"],
                 "use_llm": True,
                 "dry_run": False,
                 "max_cost_per_session": 0.02,

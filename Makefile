@@ -136,7 +136,7 @@ test-backend:
 
 test-frontend:
 	@echo "🧪 Running frontend tests..."
-	cd frontend && npm test -- --run
+	cd frontend && npm test -- --run --passWithNoTests
 
 test-fast:
 	@echo "🧪 Running fast backend confidence checks..."

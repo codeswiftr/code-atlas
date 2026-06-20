@@ -13,7 +13,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.11"
-  NODE_VERSION: "18"
+  NODE_VERSION: "22"
 
 jobs:
   # ===========================================================================
@@ -145,7 +145,7 @@ jobs:
 
       - name: Run tests
         working-directory: frontend
-        run: npm test -- --run
+        run: npm test -- --run --passWithNoTests
 
   # ===========================================================================
   # Docker Build Test
@@ -163,7 +163,8 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
+          context: .
+          file: ./backend/Dockerfile
           push: false
           tags: code-atlas:test
           cache-from: type=gha

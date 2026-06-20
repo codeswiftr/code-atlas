@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -145,7 +144,7 @@ def create_checkout_session(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Billing not configured",
         )
-    
+
     price_id = get_price_id(tier)
     if not price_id or "placeholder" in price_id:
         raise HTTPException(

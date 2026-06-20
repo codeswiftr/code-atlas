@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..logging_config import get_logger
-from ..schemas.auth import APITier, TIER_RATE_LIMITS
+from ..schemas.auth import TIER_RATE_LIMITS, APITier
 from ..schemas.usage import UsageEventType
 
 logger = get_logger(__name__)
@@ -85,8 +85,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if client_key in self._requests:
             cutoff = now.timestamp() - self.WINDOW_SECONDS
             self._requests[client_key] = [
-                ts for ts in self._requests[client_key]
-                if ts.timestamp() > cutoff
+                ts for ts in self._requests[client_key] if ts.timestamp() > cutoff
             ]
 
     def _check_rate_limit(self, request: Request) -> tuple[bool, int, int]:

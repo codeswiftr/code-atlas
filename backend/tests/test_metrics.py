@@ -16,7 +16,7 @@ from code_atlas.metrics import AtlasMetrics, MetricsConfig, init_metrics
 def mock_http_server(monkeypatch):
     """Prevent real HTTP server from starting during tests."""
     mock_server = MagicMock()
-    monkeypatch.setattr('code_atlas.metrics.start_http_server', mock_server)
+    monkeypatch.setattr("code_atlas.metrics.start_http_server", mock_server)
     return mock_server
 
 
@@ -50,7 +50,7 @@ class TestMetricsConfig:
             metrics_host="127.0.0.1",
             metrics_port=9090,
             metrics_path="/custom-metrics",
-            prometheus_namespace="custom_atlas"
+            prometheus_namespace="custom_atlas",
         )
 
         config = MetricsConfig(
@@ -58,7 +58,7 @@ class TestMetricsConfig:
             host=settings.metrics_host,
             port=settings.metrics_port,
             metrics_path=settings.metrics_path,
-            namespace=settings.prometheus_namespace
+            namespace=settings.prometheus_namespace,
         )
 
         assert config.enabled is True
@@ -98,19 +98,19 @@ class TestAtlasMetrics:
     def test_metric_initialization(self) -> None:
         """Test that all Prometheus metrics are properly initialized."""
         # Check that counters exist
-        assert hasattr(self.metrics, 'pipeline_sessions_total')
-        assert hasattr(self.metrics, 'db_nodes_created')
-        assert hasattr(self.metrics, 'extraction_requests_total')
-        assert hasattr(self.metrics, 'cost_total_usd')
-        assert hasattr(self.metrics, 'errors_total')
+        assert hasattr(self.metrics, "pipeline_sessions_total")
+        assert hasattr(self.metrics, "db_nodes_created")
+        assert hasattr(self.metrics, "extraction_requests_total")
+        assert hasattr(self.metrics, "cost_total_usd")
+        assert hasattr(self.metrics, "errors_total")
 
         # Check that gauges exist
-        assert hasattr(self.metrics, 'system_memory_bytes')
-        assert hasattr(self.metrics, 'app_sessions_active')
+        assert hasattr(self.metrics, "system_memory_bytes")
+        assert hasattr(self.metrics, "app_sessions_active")
 
         # Check that histograms exist
-        assert hasattr(self.metrics, 'pipeline_processing_time')
-        assert hasattr(self.metrics, 'cost_per_session')
+        assert hasattr(self.metrics, "pipeline_processing_time")
+        assert hasattr(self.metrics, "cost_per_session")
 
     def test_pipeline_metrics(self) -> None:
         """Test pipeline-related metrics."""
@@ -218,7 +218,7 @@ class TestAtlasMetrics:
         assert "test_atlas_sessions_active" in output
         assert "test_atlas_sessions_queue_size" in output
 
-    @patch('code_atlas.metrics.psutil')
+    @patch("code_atlas.metrics.psutil")
     def test_system_metrics_collection(self, mock_psutil) -> None:
         """Test system metrics collection."""
         import threading
@@ -238,9 +238,7 @@ class TestAtlasMetrics:
         mock_disk.total = 10000000000
         mock_psutil.disk_usage.return_value = mock_disk
 
-        mock_psutil.disk_partitions.return_value = [
-            Mock(mountpoint="/")
-        ]
+        mock_psutil.disk_partitions.return_value = [Mock(mountpoint="/")]
 
         # Run _collect_system_metrics in a thread and stop after first iteration
         def run_collection():
@@ -254,7 +252,7 @@ class TestAtlasMetrics:
             self.metrics._stop_event.set()
             return True
 
-        with patch.object(threading.Event, 'wait', patched_wait):
+        with patch.object(threading.Event, "wait", patched_wait):
             self.metrics._collect_system_metrics()
 
         # Verify metrics are recorded
@@ -288,14 +286,12 @@ class TestAtlasMetrics:
         self.metrics.stop_collection()
         assert self.metrics._stop_event.is_set()
 
-    @patch('code_atlas.metrics.start_http_server')
+    @patch("code_atlas.metrics.start_http_server")
     def test_http_server_start(self, mock_start_server) -> None:
         """Test HTTP server startup."""
         self.metrics.start_collection()
         mock_start_server.assert_called_once_with(
-            self.config.port,
-            addr=self.config.host,
-            registry=self.metrics.registry
+            self.config.port, addr=self.config.host, registry=self.metrics.registry
         )
 
     def test_init_metrics_function(self) -> None:
@@ -304,7 +300,7 @@ class TestAtlasMetrics:
             enable_metrics=True,
             metrics_host="127.0.0.1",
             metrics_port=9090,
-            prometheus_namespace="test_init"
+            prometheus_namespace="test_init",
         )
 
         metrics = init_metrics(settings)
@@ -388,9 +384,7 @@ class TestMetricsIntegration:
         discovery.discover.return_value = [mock_session]
 
         # Create runner with metrics
-        runner = PipelineRunner(
-            discovery, extractor, populator, settings=settings
-        )
+        runner = PipelineRunner(discovery, extractor, populator, settings=settings)
 
         # Verify metrics were initialized
         assert runner.metrics is not None
@@ -421,12 +415,10 @@ class TestMetricsIntegration:
         extraction = ExtractionResult(
             entities=[
                 Entity(type="file", name="test.py"),
-                Entity(type="concept", name="algorithms")
+                Entity(type="concept", name="algorithms"),
             ],
-            relationships=[
-                Relationship(type="RELATED_TO", source="test.py", target="algorithms")
-            ],
-            insights=["Test insight"]
+            relationships=[Relationship(type="RELATED_TO", source="test.py", target="algorithms")],
+            insights=["Test insight"],
         )
 
         # Run upsert (should record metrics)

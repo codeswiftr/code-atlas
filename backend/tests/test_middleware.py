@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.testclient import TestClient
 
 from code_atlas.api.middleware import RateLimitMiddleware, RequestLoggingMiddleware
-from code_atlas.schemas.auth import APITier, TIER_RATE_LIMITS
+from code_atlas.schemas.auth import TIER_RATE_LIMITS, APITier
 
 
 class TestRateLimitMiddleware:
@@ -183,7 +183,6 @@ class TestRateLimitMiddleware:
         mock_request = MagicMock(spec=Request)
         mock_request.headers.get.return_value = "admin-key-12345"
 
-        tier = middleware._get_tier(mock_request)
         # Admin is not a tier, but gets high limit via _get_limit
         assert middleware._is_admin(mock_request) is True
 

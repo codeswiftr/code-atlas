@@ -10,6 +10,7 @@ class TestRAGService:
 
     def test_init(self):
         """Test RAGService initialization."""
+
         # Mock dependencies
         class MockGraph:
             def execute_query(self, query: str, params: dict) -> list:
@@ -17,8 +18,13 @@ class TestRAGService:
 
         class MockHybridSearch:
             def search(  # noqa: E501
-                self, query, entity_type=None, limit=10, min_score=0.0,
-                use_graph_structure=True, use_vector_search=True
+                self,
+                query,
+                entity_type=None,
+                limit=10,
+                min_score=0.0,
+                use_graph_structure=True,
+                use_vector_search=True,
             ):
                 return []
 
@@ -35,14 +41,20 @@ class TestRAGService:
 
     def test_answer_question_no_results(self):
         """Test answering question when no results found."""
+
         class MockGraph:
             def execute_query(self, query: str, params: dict) -> list:
                 return []
 
         class MockHybridSearch:
             def search(  # noqa: E501
-                self, query, entity_type=None, limit=10, min_score=0.0,
-                use_graph_structure=True, use_vector_search=True
+                self,
+                query,
+                entity_type=None,
+                limit=10,
+                min_score=0.0,
+                use_graph_structure=True,
+                use_vector_search=True,
             ):
                 return []
 
@@ -71,6 +83,7 @@ class TestCreateRAGService:
 
     def test_create_rag_service(self):
         """Test creating RAG service."""
+
         class MockGraph:
             def execute_query(self, query: str, params: dict) -> list:
                 return []

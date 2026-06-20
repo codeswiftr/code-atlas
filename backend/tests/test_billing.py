@@ -1,10 +1,11 @@
 """Tests for billing API endpoints."""
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
-from code_atlas.api.v1.billing import router, _get_tier_price, _subscriptions
+from code_atlas.api.v1.billing import _get_tier_price, router
 from code_atlas.schemas.auth import APITier
 
 
@@ -12,6 +13,7 @@ from code_atlas.schemas.auth import APITier
 def client():
     """Create test client."""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router)  # Router already has /billing prefix
     return TestClient(app)
@@ -72,8 +74,9 @@ class TestBillingWebhook:
         """Test webhook endpoint returns 200 in dev mode."""
         with patch("code_atlas.api.v1.billing.STRIPE_WEBHOOK_SECRET", "test_secret"):
             with patch("code_atlas.api.v1.billing.STRIPE_SECRET_KEY", "sk_test_"):
-                from fastapi.testclient import TestClient
                 from fastapi import FastAPI
+                from fastapi.testclient import TestClient
+
                 from code_atlas.api.v1.billing import router
 
                 app = FastAPI()
@@ -87,8 +90,9 @@ class TestBillingWebhook:
         """Test handling checkout.session.completed event."""
         with patch("code_atlas.api.v1.billing.STRIPE_WEBHOOK_SECRET", "test_secret"):
             with patch("code_atlas.api.v1.billing.STRIPE_SECRET_KEY", "sk_test_"):
-                from fastapi.testclient import TestClient
                 from fastapi import FastAPI
+                from fastapi.testclient import TestClient
+
                 from code_atlas.api.v1.billing import router
 
                 app = FastAPI()
@@ -110,8 +114,9 @@ class TestBillingWebhook:
         """Test handling customer.subscription.deleted event."""
         with patch("code_atlas.api.v1.billing.STRIPE_WEBHOOK_SECRET", "test_secret"):
             with patch("code_atlas.api.v1.billing.STRIPE_SECRET_KEY", "sk_test_"):
-                from fastapi.testclient import TestClient
                 from fastapi import FastAPI
+                from fastapi.testclient import TestClient
+
                 from code_atlas.api.v1.billing import router
 
                 app = FastAPI()
@@ -132,8 +137,9 @@ class TestBillingWebhook:
         """Test handling invoice.payment_failed event."""
         with patch("code_atlas.api.v1.billing.STRIPE_WEBHOOK_SECRET", "test_secret"):
             with patch("code_atlas.api.v1.billing.STRIPE_SECRET_KEY", "sk_test_"):
-                from fastapi.testclient import TestClient
                 from fastapi import FastAPI
+                from fastapi.testclient import TestClient
+
                 from code_atlas.api.v1.billing import router
 
                 app = FastAPI()
@@ -159,9 +165,10 @@ class TestSubscriptionStatus:
         with patch("code_atlas.usage_tracker.get_tracker") as mock_tracker:
             mock_tracker.return_value.get_hourly_usage.return_value = 5
 
-            from fastapi.testclient import TestClient
             from fastapi import FastAPI
-            from code_atlas.api.v1.billing import router, _require_admin_key
+            from fastapi.testclient import TestClient
+
+            from code_atlas.api.v1.billing import _require_admin_key, router
 
             app = FastAPI()
             app.include_router(router)

@@ -6,8 +6,6 @@ required to run this suite.
 
 from __future__ import annotations
 
-import json
-import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -27,13 +25,9 @@ from code_atlas.integrations.github import (
     _extract_entities_from_text,
 )
 from code_atlas.integrations.models import (
-    GitHubIssue,
     GitHubPR,
-    ImportResult,
-    RepoImportRequest,
 )
 from code_atlas.integrations.token_store import TokenStore, reset_token_store
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -65,7 +59,6 @@ def settings(tmp_path: Path) -> AtlasSettings:
 @pytest.fixture()
 def client(settings: AtlasSettings) -> TestClient:
     from code_atlas.api.dependencies import get_settings
-    from code_atlas.integrations.token_store import get_token_store
 
     app = create_app(settings)
 
@@ -383,8 +376,6 @@ def test_github_status_not_connected(client: TestClient):
 
 
 def test_github_connect_stores_token(client: TestClient):
-    user_resp = _mock_json_response(_make_user_response("alice"))
-
     with patch(
         "code_atlas.api.v1.integrations.GitHubClient.__aenter__",
         new_callable=AsyncMock,

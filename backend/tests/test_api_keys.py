@@ -106,9 +106,7 @@ class TestAPIKeyManager:
         # Verify key fails after revocation
         assert key_manager.validate_key(raw_key) is None
 
-    def test_scopes_enforced_correctly(
-        self, key_manager: APIKeyManager
-    ) -> None:
+    def test_scopes_enforced_correctly(self, key_manager: APIKeyManager) -> None:
         """Scope checks work correctly."""
         # Create key with read-only scope
         raw_key, record = key_manager.generate_key(

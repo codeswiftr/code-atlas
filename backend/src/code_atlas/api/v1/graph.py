@@ -544,8 +544,7 @@ async def execute_query(
     # Security: Only allow read queries
     query_upper = request.query.upper().strip()
     if any(
-        keyword in query_upper
-        for keyword in ["CREATE", "DELETE", "SET", "REMOVE", "MERGE", "DROP"]
+        keyword in query_upper for keyword in ["CREATE", "DELETE", "SET", "REMOVE", "MERGE", "DROP"]
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -672,9 +671,7 @@ async def get_visualization(
                                 size=10.0 + (node.get("mention_count", 0) * 2),
                                 color=ENTITY_COLORS.get(node_type, "#64748B"),
                                 properties={
-                                    k: v
-                                    for k, v in node.items()
-                                    if k not in ["id", "name"]
+                                    k: v for k, v in node.items() if k not in ["id", "name"]
                                 },
                             )
                         )
@@ -705,11 +702,7 @@ async def get_visualization(
                             type=rel_type,
                             weight=1.0 + (rel.get("confidence", 0) or 0),
                             color=RELATIONSHIP_COLORS.get(rel_type, "#64748B"),
-                            properties={
-                                k: v
-                                for k, v in rel.items()
-                                if k not in ["confidence"]
-                            },
+                            properties={k: v for k, v in rel.items() if k not in ["confidence"]},
                         )
                     )
 

@@ -40,14 +40,14 @@ def mock_graph():
 def client_with_mock_graph(settings, mock_graph):
     """Create test client with mocked graph."""
     from code_atlas.api.dependencies import get_graph_populator
-    
+
     app = create_app(settings)
-    
+
     def override_get_graph_populator():
         return mock_graph
-    
+
     app.dependency_overrides[get_graph_populator] = override_get_graph_populator
-    
+
     return TestClient(app)
 
 
@@ -71,7 +71,7 @@ class TestTopEntities:
         mock_graph.execute_query.return_value = mock_result
 
         response = client_with_mock_graph.get("/api/v1/insights/top-entities?limit=10")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "entities" in data
@@ -94,7 +94,7 @@ class TestTopEntities:
         mock_graph.execute_query.return_value = mock_result
 
         response = client_with_mock_graph.get("/api/v1/insights/top-entities?type=Tool&limit=10")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["entity_type"] == "Tool"
@@ -114,7 +114,7 @@ class TestTopEntities:
         mock_graph.execute_query.return_value = []
 
         response = client_with_mock_graph.get("/api/v1/insights/top-entities")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 0
@@ -125,7 +125,7 @@ class TestTopEntities:
         mock_graph.execute_query.side_effect = Exception("Database connection failed")
 
         response = client_with_mock_graph.get("/api/v1/insights/top-entities")
-        
+
         assert response.status_code == 500
         assert "Failed to get top entities" in response.json()["detail"]
 
@@ -152,7 +152,7 @@ class TestRecurringProblems:
         response = client_with_mock_graph.get(
             "/api/v1/insights/recurring-problems?min_sessions=2&limit=20"
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "problems" in data
@@ -175,7 +175,7 @@ class TestRecurringProblems:
         mock_graph.execute_query.return_value = mock_result
 
         response = client_with_mock_graph.get("/api/v1/insights/recurring-problems?min_sessions=5")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["min_sessions"] == 5
@@ -186,7 +186,7 @@ class TestRecurringProblems:
         mock_graph.execute_query.return_value = []
 
         response = client_with_mock_graph.get("/api/v1/insights/recurring-problems")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 0
@@ -197,7 +197,7 @@ class TestRecurringProblems:
         mock_graph.execute_query.side_effect = Exception("Query execution failed")
 
         response = client_with_mock_graph.get("/api/v1/insights/recurring-problems")
-        
+
         assert response.status_code == 500
         assert "Failed to get recurring problems" in response.json()["detail"]
 
@@ -222,7 +222,7 @@ class TestPopularTools:
         mock_graph.execute_query.return_value = mock_result
 
         response = client_with_mock_graph.get("/api/v1/insights/popular-tools?limit=10")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "tools" in data
@@ -245,7 +245,7 @@ class TestPopularTools:
         mock_graph.execute_query.return_value = []
 
         response = client_with_mock_graph.get("/api/v1/insights/popular-tools")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 0
@@ -256,7 +256,7 @@ class TestPopularTools:
         mock_graph.execute_query.side_effect = Exception("Graph query failed")
 
         response = client_with_mock_graph.get("/api/v1/insights/popular-tools")
-        
+
         assert response.status_code == 500
         assert "Failed to get popular tools" in response.json()["detail"]
 
@@ -266,6 +266,7 @@ class TestConceptRelationships:
 
     def test_concept_relationships_success(self, client_with_mock_graph, mock_graph):
         """Test concept relationships endpoint returns correct data."""
+
         # Mock the two queries: relationship types and top pairs
         def mock_execute_query(query, params):
             if "type(r)" in query or "relationship_types" in query.lower():
@@ -288,7 +289,7 @@ class TestConceptRelationships:
         mock_graph.execute_query.side_effect = mock_execute_query
 
         response = client_with_mock_graph.get("/api/v1/insights/concept-relationships?limit=10")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "relationship_types" in data
@@ -304,7 +305,7 @@ class TestConceptRelationships:
         mock_graph.execute_query.return_value = []
 
         response = client_with_mock_graph.get("/api/v1/insights/concept-relationships")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "relationship_types" in data
@@ -317,7 +318,7 @@ class TestConceptRelationships:
         mock_graph.execute_query.side_effect = Exception("Relationship query failed")
 
         response = client_with_mock_graph.get("/api/v1/insights/concept-relationships")
-        
+
         assert response.status_code == 500
         assert "Failed to get concept relationships" in response.json()["detail"]
 
@@ -328,11 +329,11 @@ class TestTrends:
     def test_trends_success(self, client_with_mock_graph, mock_graph):
         """Test trends endpoint returns correct data."""
         from datetime import datetime, timedelta
-        
+
         # Mock result with ISO format date strings that will be parsed correctly
         today = datetime.now(UTC)
         yesterday = today - timedelta(days=1)
-        
+
         mock_result = [
             {
                 "created_date": today.isoformat(),
@@ -348,7 +349,7 @@ class TestTrends:
         mock_graph.execute_query.return_value = mock_result
 
         response = client_with_mock_graph.get("/api/v1/insights/trends?days=30")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "trends" in data
@@ -372,7 +373,7 @@ class TestTrends:
         mock_graph.execute_query.return_value = []
 
         response = client_with_mock_graph.get("/api/v1/insights/trends")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data["trends"]) == 0
@@ -382,7 +383,7 @@ class TestTrends:
         mock_graph.execute_query.side_effect = Exception("Trends query failed")
 
         response = client_with_mock_graph.get("/api/v1/insights/trends")
-        
+
         assert response.status_code == 500
         assert "Failed to get trends" in response.json()["detail"]
 
@@ -392,6 +393,7 @@ class TestInsightReport:
 
     def test_insight_report_success(self, client_with_mock_graph, mock_graph):
         """Test insight report endpoint returns comprehensive data."""
+
         # Mock multiple query results
         def mock_execute_query(query, params):
             if "top_entities" in query or "MATCH (e)" in query and "mention_count" in query:
@@ -406,7 +408,8 @@ class TestInsightReport:
                 return [
                     {
                         "p": {
-                            "id": "problem1", "name": "Recurring Issue",
+                            "id": "problem1",
+                            "name": "Recurring Issue",
                             "source_session": "session1",
                         },
                         "session_count": 5,
@@ -426,7 +429,7 @@ class TestInsightReport:
         mock_graph.execute_query.side_effect = mock_execute_query
 
         response = client_with_mock_graph.get("/api/v1/insights/reports")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "top_entities" in data
@@ -442,7 +445,7 @@ class TestInsightReport:
         mock_graph.execute_query.return_value = []
 
         response = client_with_mock_graph.get("/api/v1/insights/reports")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "top_entities" in data
@@ -458,8 +461,7 @@ class TestInsightReport:
         mock_graph.execute_query.side_effect = Exception("Report generation failed")
 
         response = client_with_mock_graph.get("/api/v1/insights/reports")
-        
+
         assert response.status_code == 500
         detail = response.json()["detail"]
         assert "Failed to generate" in detail or "Failed to generate insight report" in detail
-

@@ -49,9 +49,7 @@ class GitHubTimeoutError(Exception):
 
 # Patterns that look like file-system paths or qualified names in PR text
 _FILE_PATH_RE = re.compile(r"[`'\"]([a-zA-Z0-9_./-]+\.[a-zA-Z]{1,6})[`'\"]")
-_FUNC_NAME_RE = re.compile(
-    r"\b(def |function |func |async def )([a-zA-Z_][a-zA-Z0-9_]{2,})\s*\("
-)
+_FUNC_NAME_RE = re.compile(r"\b(def |function |func |async def )([a-zA-Z_][a-zA-Z0-9_]{2,})\s*\(")
 
 
 def _extract_entities_from_text(text: str) -> list[dict[str, str]]:
@@ -131,9 +129,7 @@ class GitHubClient:
 
     def _ensure_client(self) -> httpx.AsyncClient:
         if self._client is None:
-            raise RuntimeError(
-                "GitHubClient must be used as an async context manager."
-            )
+            raise RuntimeError("GitHubClient must be used as an async context manager.")
         return self._client
 
     async def _get(self, path: str, **params: Any) -> Any:
@@ -172,9 +168,7 @@ class GitHubClient:
                 )
                 await asyncio.sleep(delay)
             except httpx.TimeoutException:
-                last_exc = GitHubTimeoutError(
-                    f"Request to {path} timed out after {self._timeout}s"
-                )
+                last_exc = GitHubTimeoutError(f"Request to {path} timed out after {self._timeout}s")
                 delay = _RETRY_BASE_DELAY * (2**attempt)
                 logger.warning(
                     "GitHub API timeout — retrying",
@@ -203,9 +197,7 @@ class GitHubClient:
                 "Check that your OAuth token is valid and has not been revoked."
             )
         if code == 404:
-            raise GitHubNotFoundError(
-                f"GitHub resource not found: {response.url}"
-            )
+            raise GitHubNotFoundError(f"GitHub resource not found: {response.url}")
         if code in (403, 429):
             raise GitHubRateLimitError(
                 f"GitHub rate limit exceeded (HTTP {code}). "
@@ -351,9 +343,7 @@ class GitHubClient:
         )
         return RepoContext(owner=owner, repo=repo, readme=readme, prs=prs, issues=issues)
 
-    async def fetch_pr_context(
-        self, owner: str, repo: str, pr_number: int
-    ) -> GitHubPR:
+    async def fetch_pr_context(self, owner: str, repo: str, pr_number: int) -> GitHubPR:
         """Fetch full context for a single pull request.
 
         Fetches PR metadata, file list, and comments concurrently.
@@ -410,12 +400,8 @@ class GitHubClient:
             body=pr_data.get("body"),
             state=state_raw,  # type: ignore[arg-type]
             author=pr_data.get("user", {}).get("login", "unknown"),
-            created_at=datetime.fromisoformat(
-                pr_data["created_at"].replace("Z", "+00:00")
-            ),
-            updated_at=datetime.fromisoformat(
-                pr_data["updated_at"].replace("Z", "+00:00")
-            ),
+            created_at=datetime.fromisoformat(pr_data["created_at"].replace("Z", "+00:00")),
+            updated_at=datetime.fromisoformat(pr_data["updated_at"].replace("Z", "+00:00")),
             files_changed=files_changed,
             comments=comments,
         )
@@ -473,14 +459,10 @@ class GitHubClient:
         content = data.get("content", "")
         encoding = data.get("encoding", "base64")
         if encoding == "base64" and content:
-            return _base64.b64decode(content.replace("\n", "")).decode(
-                "utf-8", errors="replace"
-            )
+            return _base64.b64decode(content.replace("\n", "")).decode("utf-8", errors="replace")
         return content or None
 
-    async def _fetch_pull_requests(
-        self, owner: str, repo: str, max_prs: int
-    ) -> list[GitHubPR]:
+    async def _fetch_pull_requests(self, owner: str, repo: str, max_prs: int) -> list[GitHubPR]:
         """Fetch up to *max_prs* recent pull requests (open + closed)."""
         data = await self._get(
             f"/repos/{owner}/{repo}/pulls",
@@ -503,19 +485,13 @@ class GitHubClient:
                     body=raw.get("body"),
                     state=state_raw,  # type: ignore[arg-type]
                     author=raw.get("user", {}).get("login", "unknown"),
-                    created_at=datetime.fromisoformat(
-                        raw["created_at"].replace("Z", "+00:00")
-                    ),
-                    updated_at=datetime.fromisoformat(
-                        raw["updated_at"].replace("Z", "+00:00")
-                    ),
+                    created_at=datetime.fromisoformat(raw["created_at"].replace("Z", "+00:00")),
+                    updated_at=datetime.fromisoformat(raw["updated_at"].replace("Z", "+00:00")),
                 )
             )
         return prs
 
-    async def _fetch_issues(
-        self, owner: str, repo: str, max_issues: int
-    ) -> list[GitHubIssue]:
+    async def _fetch_issues(self, owner: str, repo: str, max_issues: int) -> list[GitHubIssue]:
         """Fetch up to *max_issues* open issues."""
         data = await self._get(
             f"/repos/{owner}/{repo}/issues",
@@ -541,9 +517,7 @@ class GitHubClient:
                     state=state_raw,  # type: ignore[arg-type]
                     author=raw.get("user", {}).get("login", "unknown"),
                     labels=labels,
-                    created_at=datetime.fromisoformat(
-                        raw["created_at"].replace("Z", "+00:00")
-                    ),
+                    created_at=datetime.fromisoformat(raw["created_at"].replace("Z", "+00:00")),
                 )
             )
         return issues

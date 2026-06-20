@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from ...auth.api_keys import APIKeyManager, get_key_manager
 from ...logging_config import get_logger
-from ...schemas.auth import APITier, APIKeyScope
+from ...schemas.auth import APITier
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/billing", tags=["Billing"])
@@ -36,12 +36,8 @@ class CheckoutRequest(BaseModel):
     """Request to create a Stripe checkout session."""
 
     tier: APITier = Field(..., description="Tier to subscribe to")
-    success_url: str | None = Field(
-        None, description="URL to redirect after success"
-    )
-    cancel_url: str | None = Field(
-        None, description="URL to redirect on cancellation"
-    )
+    success_url: str | None = Field(None, description="URL to redirect after success")
+    cancel_url: str | None = Field(None, description="URL to redirect on cancellation")
 
 
 class CheckoutResponse(BaseModel):
@@ -73,6 +69,7 @@ def _get_stripe_client():
     """Get Stripe client (lazy import)."""
     try:
         import stripe
+
         stripe.api_key = STRIPE_API_KEY
         return stripe
     except ImportError:
@@ -80,7 +77,10 @@ def _get_stripe_client():
         return None
 
 
-def _require_admin_key(api_key: APIKeyManager = Depends(get_key_manager)) -> str:
+KEY_MANAGER_DEPENDENCY = Depends(get_key_manager)
+
+
+def _require_admin_key(api_key: APIKeyManager = KEY_MANAGER_DEPENDENCY) -> str:
     """Dependency that requires admin scope."""
     # In production, validate the API key has admin scope
     # For now, check if key exists and has admin scope
@@ -161,7 +161,7 @@ async def create_checkout(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create checkout session: {exc}",
-        )
+        ) from exc
 
 
 @router.post(
@@ -198,7 +198,7 @@ async def stripe_webhook(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid webhook signature",
-            )
+            ) from exc
     else:
         # Development mode - skip signature verification; parse JSON payload
         try:
@@ -256,11 +256,12 @@ async def _handle_subscription_updated(data: dict) -> None:
     logger.info(
         "Subscription updated",
         subscription_id=subscription_id,
+        customer_id=customer_id,
         status=status_str,
     )
 
     # Update subscription status
-    for key_prefix, sub in _subscriptions.items():
+    for _key_prefix, sub in _subscriptions.items():
         if sub.get("stripe_subscription_id") == subscription_id:
             sub["status"] = status_str
             break
@@ -278,7 +279,7 @@ async def _handle_subscription_deleted(data: dict) -> None:
     )
 
     # Downgrade to free tier
-    for key_prefix, sub in _subscriptions.items():
+    for _key_prefix, sub in _subscriptions.items():
         if sub.get("stripe_subscription_id") == subscription_id:
             sub["tier"] = APITier.FREE
             sub["status"] = "canceled"
@@ -318,6 +319,7 @@ async def get_subscription_status(
 
     # Get usage for current period
     from ...usage_tracker import get_tracker
+
     tracker = get_tracker()
     hourly_usage = tracker.get_hourly_usage(f"key:{key_prefix}")
 

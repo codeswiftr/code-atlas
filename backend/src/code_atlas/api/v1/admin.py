@@ -10,11 +10,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ...auth.api_keys import APIKeyManager, get_key_manager
 from ...logging_config import get_logger
 from ...schemas.auth import (
+    TIER_RATE_LIMITS,
     APIKeyCreateRequest,
     APIKeyCreateResponse,
     APIKeyInfo,
     APIKeyUsageStats,
-    TIER_RATE_LIMITS,
 )
 from ..dependencies import ApiKey
 

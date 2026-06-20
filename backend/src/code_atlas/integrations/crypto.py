@@ -59,6 +59,7 @@ def _get_server_key() -> bytes:
 # Core keystream helper
 # ---------------------------------------------------------------------------
 
+
 def _keystream(derived_key: bytes, nonce: bytes, length: int) -> bytes:
     """Generate *length* bytes of keystream using HMAC-SHA256 in counter mode."""
     stream = bytearray()
@@ -114,8 +115,7 @@ def decrypt_token(ciphertext: str) -> str:
 
     if len(payload) < _NONCE_LEN:
         raise ValueError(
-            f"Ciphertext too short: expected at least {_NONCE_LEN} bytes, "
-            f"got {len(payload)}"
+            f"Ciphertext too short: expected at least {_NONCE_LEN} bytes, got {len(payload)}"
         )
 
     server_key = _get_server_key()

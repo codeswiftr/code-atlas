@@ -157,7 +157,7 @@ class PipelineRunner:
                                 "entities": len(extraction.entities),
                                 "relationships": len(extraction.relationships),
                                 "cost_usd": extraction.estimated_cost_usd,
-                            }
+                            },
                         )
 
                     logger.info(
@@ -212,7 +212,7 @@ class PipelineRunner:
                                     "session_id": meta.session_id,
                                     "error": str(exc)[:200],  # Truncate long errors
                                     "error_type": type(exc).__name__,
-                                }
+                                },
                             )
 
                         logger.error(
@@ -353,7 +353,7 @@ class PipelineRunner:
                         "entities": len(extraction.entities),
                         "relationships": len(extraction.relationships),
                         "extraction_method": "llm" if use_llm else "heuristics",
-                    }
+                    },
                 )
 
             # Return results
@@ -379,7 +379,7 @@ class PipelineRunner:
             if self.history:
                 # Try to get project from path if meta doesn't exist
                 try:
-                    project = meta.project if 'meta' in locals() else session_path.parent.name
+                    project = meta.project if "meta" in locals() else session_path.parent.name
                 except Exception:
                     project = "unknown"
 
@@ -392,7 +392,7 @@ class PipelineRunner:
                         "session_path": str(session_path),
                         "error": str(exc)[:200],
                         "error_type": type(exc).__name__,
-                    }
+                    },
                 )
 
             return {
