@@ -437,7 +437,7 @@ class GraphPopulator:
         """List all indexes currently defined in the system."""
         return self.INDEXES.copy()
 
-    def verify_indexes(self) -> dict[str, dict[str, bool]]:
+    def verify_indexes(self) -> dict[str, dict[str, bool] | str]:
         """Verify which indexes exist in the database.
 
         Returns:
@@ -446,10 +446,10 @@ class GraphPopulator:
         if not self.client:
             return {"error": "No database connection available"}
 
-        result = {}
+        result: dict[str, dict[str, bool] | str] = {}
 
         for category, index_queries in self.INDEXES.items():
-            result[category] = {}
+            category_result: dict[str, bool] = {}
 
             for index_query in index_queries:
                 # Extract index name from query for verification
@@ -471,11 +471,11 @@ class GraphPopulator:
                         test_query = "SHOW INDEXES"
                         self.client.execute_command("GRAPH.QUERY", self.graph_name, test_query)
                         # For now, assume index exists if no error occurred
-                        result[category][index_name] = True
+                        category_result[index_name] = True
                     except redis.RedisError:
-                        result[category][index_name] = False
-                else:
-                    result[category][index_query] = None  # Unknown status
+                        category_result[index_name] = False
+
+            result[category] = category_result
 
         return result
 

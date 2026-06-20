@@ -339,7 +339,7 @@ class InsightExtractor:
             return self._extract_with_chunking(session)
 
         # Standard extraction with retry for smaller sessions
-        last_exception = None
+        last_exception: BaseException | None = None
 
         for attempt in range(max_retries):
             try:
@@ -371,7 +371,9 @@ class InsightExtractor:
                     )
                     raise
 
-        raise last_exception  # Should never reach here, but satisfy type checker
+        if last_exception is not None:
+            raise last_exception
+        raise RuntimeError("Extraction retry loop exited without a result")
 
     def _extract_with_chunking(self, session: ParsedSession) -> ExtractionResult:
         """Extract from large session by processing chunks and merging results."""
@@ -639,15 +641,17 @@ class InsightExtractor:
             matches = file_path_pattern.findall(msg.text)
             for match_groups in matches:
                 # match_groups is a tuple of groups, get first non-empty
-                file_path = next((g for g in match_groups if g), None)
-                if file_path and file_path not in seen_files:
+                extracted_file_path: str | None = next((g for g in match_groups if g), None)
+                if extracted_file_path and extracted_file_path not in seen_files:
                     # Filter out common non-file patterns
-                    if not any(x in file_path.lower() for x in [".com/", ".org/", ".io/", "http"]):
-                        seen_files.add(file_path)
+                    if not any(
+                        x in extracted_file_path.lower() for x in [".com/", ".org/", ".io/", "http"]
+                    ):
+                        seen_files.add(extracted_file_path)
                         entities.append(
                             Entity(
                                 type="file",
-                                name=file_path,
+                                name=extracted_file_path,
                                 confidence=0.8,  # Medium-high confidence for regex-extracted paths
                                 metadata={
                                     "project": session.metadata.project,
@@ -751,13 +755,13 @@ class InsightExtractor:
 
             # Deduplicate relationships by (source, target, type)
             for rel in result.relationships:
-                key = (rel.source, rel.target, rel.type)
-                if key not in relationships_dict:
-                    relationships_dict[key] = rel
+                rel_key: tuple[str, str, str] = (rel.source, rel.target, rel.type)
+                if rel_key not in relationships_dict:
+                    relationships_dict[rel_key] = rel
                 else:
                     # Keep relationship with higher confidence
-                    if rel.confidence > relationships_dict[key].confidence:
-                        relationships_dict[key] = rel
+                    if rel.confidence > relationships_dict[rel_key].confidence:
+                        relationships_dict[rel_key] = rel
 
             # Collect all insights (deduplicate at list level)
             all_insights.extend(result.insights)

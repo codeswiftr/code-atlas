@@ -48,20 +48,20 @@ class MockGraphPopulator:
             }
             return []
 
+        # Handle search operations
+        if "RETURN" in query and "e.id as entity_id" in query:
+            results = []
+            for eid, data in self.storage.items():
+                if data.get("embedding"):
+                    results.append({"entity_id": eid, "embedding": data["embedding"]})
+            return results
+
         # Handle MATCH/RETURN operations (retrieve)
         if "RETURN" in query and "embedding" in query:
             entity_id = params.get("entity_id", "")
             if entity_id in self.storage:
                 return [self.storage[entity_id]]
             return []
-
-        # Handle search operations
-        if "RETURN" in query and "entity_id" in query:
-            results = []
-            for eid, data in self.storage.items():
-                if data.get("embedding"):
-                    results.append({"entity_id": eid, "embedding": data["embedding"]})
-            return results
 
         # Handle delete operations
         if "REMOVE" in query:

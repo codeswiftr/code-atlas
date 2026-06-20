@@ -592,7 +592,7 @@ class SQLiteGraphStore:
 
             # count query on edge result
             if "count" in upper:
-                return [{"total": len(rows)}]
+                return [{"total": len(list(rows))}]
 
             if not row_dict:
                 row_dict = {**src_node, "rel_type": row["edge_type"], **tgt_node}

@@ -14,16 +14,16 @@ from .config import AtlasSettings, SessionFilter
 from .models import SessionMetadata
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class SessionDiscovery:
     """Discover Claude Code session files under a root directory."""
 
-    root: Path | None = None
-    settings: AtlasSettings | None = None
+    root: Path
+    settings: AtlasSettings
 
-    def __post_init__(self) -> None:
-        self.settings = self.settings or AtlasSettings()
-        self.root = (self.root or self.settings.claude_root).expanduser().resolve()
+    def __init__(self, root: Path | None = None, settings: AtlasSettings | None = None) -> None:
+        self.settings = settings or AtlasSettings()
+        self.root = (root or self.settings.claude_root).expanduser().resolve()
         if not self.root.exists():
             raise FileNotFoundError(f"Claude session root not found: {self.root}")
 

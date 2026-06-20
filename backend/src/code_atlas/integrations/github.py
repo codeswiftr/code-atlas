@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -364,44 +364,58 @@ class GitHubClient:
         comments_path = f"/repos/{owner}/{repo}/issues/{pr_number}/comments"
         reviews_path = f"{pr_path}/reviews"
 
-        pr_data, files_data, comments_data, reviews_data = await asyncio.gather(
-            self._get(pr_path),
-            self._get(files_path, per_page=100),
-            self._get(comments_path, per_page=100),
-            self._get(reviews_path, per_page=100),
-            return_exceptions=True,
+        github_results = tuple[
+            Any | BaseException,
+            Any | BaseException,
+            Any | BaseException,
+            Any | BaseException,
+        ]
+        gathered = cast(
+            github_results,
+            await asyncio.gather(
+                self._get(pr_path),
+                self._get(files_path, per_page=100),
+                self._get(comments_path, per_page=100),
+                self._get(reviews_path, per_page=100),
+                return_exceptions=True,
+            ),
         )
+        pr_result, files_result, comments_result, reviews_result = gathered
 
         # Build file list
         files_changed: list[str] = []
-        if not isinstance(files_data, Exception):
-            files_changed = [f["filename"] for f in files_data if "filename" in f]
+        if not isinstance(files_result, BaseException):
+            files_payload = cast(list[dict[str, Any]], files_result)
+            files_changed = [f["filename"] for f in files_payload if "filename" in f]
 
         # Collect comment bodies
         comments: list[str] = []
-        if not isinstance(comments_data, Exception):
-            comments += [c["body"] for c in comments_data if c.get("body")]
-        if not isinstance(reviews_data, Exception):
-            comments += [r["body"] for r in reviews_data if r.get("body")]
+        if not isinstance(comments_result, BaseException):
+            comments_payload = cast(list[dict[str, Any]], comments_result)
+            comments += [c["body"] for c in comments_payload if c.get("body")]
+        if not isinstance(reviews_result, BaseException):
+            reviews_payload = cast(list[dict[str, Any]], reviews_result)
+            comments += [r["body"] for r in reviews_payload if r.get("body")]
 
         # Fall back gracefully when the main PR call failed
-        if isinstance(pr_data, Exception):
-            raise pr_data
+        if isinstance(pr_result, BaseException):
+            raise pr_result
+        pr_payload = cast(dict[str, Any], pr_result)
 
-        state_raw = pr_data.get("state", "open")
-        if pr_data.get("merged_at"):
+        state_raw = pr_payload.get("state", "open")
+        if pr_payload.get("merged_at"):
             state_raw = "merged"
         if state_raw not in ("open", "closed", "merged"):
             state_raw = "open"
 
         return GitHubPR(
-            number=pr_data["number"],
-            title=pr_data["title"],
-            body=pr_data.get("body"),
+            number=pr_payload["number"],
+            title=pr_payload["title"],
+            body=pr_payload.get("body"),
             state=state_raw,  # type: ignore[arg-type]
-            author=pr_data.get("user", {}).get("login", "unknown"),
-            created_at=datetime.fromisoformat(pr_data["created_at"].replace("Z", "+00:00")),
-            updated_at=datetime.fromisoformat(pr_data["updated_at"].replace("Z", "+00:00")),
+            author=pr_payload.get("user", {}).get("login", "unknown"),
+            created_at=datetime.fromisoformat(pr_payload["created_at"].replace("Z", "+00:00")),
+            updated_at=datetime.fromisoformat(pr_payload["updated_at"].replace("Z", "+00:00")),
             files_changed=files_changed,
             comments=comments,
         )

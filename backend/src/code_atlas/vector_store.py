@@ -152,9 +152,11 @@ class FalkorDBVectorStore(VectorStore):
             if not result:
                 return None
 
-            embedding_str = result[0].get("embedding", "")
-            if not embedding_str:
+            embedding_str = result[0].get("embedding")
+            if embedding_str is None:
                 return None
+            if embedding_str == "":
+                return []
 
             # Parse comma-separated embedding string
             embedding = [float(x) for x in embedding_str.split(",")]

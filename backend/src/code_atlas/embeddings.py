@@ -43,7 +43,7 @@ class EmbeddingGenerator:
         logger.info("Loading embedding model", model=model_name)
         self.model = SentenceTransformer(model_name, cache_folder=cache_dir)
         self.model_name = model_name
-        self.embedding_dim = self.model.get_sentence_embedding_dimension()
+        self.embedding_dim = self.model.get_sentence_embedding_dimension() or 0
         logger.info(
             "Embedding model loaded",
             model=model_name,

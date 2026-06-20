@@ -23,7 +23,7 @@ def get_session_discovery(
     settings: Annotated[AtlasSettings, Depends(get_settings)],
 ) -> SessionDiscovery:
     """Get session discovery instance."""
-    return SessionDiscovery(settings)
+    return SessionDiscovery(settings=settings)
 
 
 def get_graph_populator(
