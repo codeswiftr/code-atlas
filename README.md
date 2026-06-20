@@ -2,6 +2,12 @@
 
 Convert Claude Code session logs into a searchable knowledge graph.
 
+## Status
+
+Code Atlas is a public beta/proof repo for turning agent session logs into searchable
+knowledge graph memory. It is usable for local experimentation and adaptation; production
+deployment still requires operator-managed API keys, FalkorDB, and hosting configuration.
+
 ## Features
 
 ### Core Pipeline
@@ -79,7 +85,8 @@ make frontend    # Just React app
 # Development
 make dev          # Start full dev environment
 make test         # Run all tests
-make test-unit    # Run unit tests only (fast)
+make test-fast    # Run fast local confidence checks
+make test-unit    # Run broad non-integration backend tests
 make lint         # Check code quality
 make format       # Auto-format code
 
@@ -212,7 +219,10 @@ similarity_threshold = 0.85
 # All tests (90+ tests)
 make test
 
-# Quick unit tests
+# Fast local confidence checks
+make test-fast
+
+# Broad non-integration backend tests
 make test-unit
 
 # Integration tests (requires Docker)
@@ -296,6 +306,7 @@ uv run code-atlas discover --root /custom/path
 - [MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - Claude Desktop integration
 - [STRATEGIC_ASSESSMENT.md](docs/STRATEGIC_ASSESSMENT.md) - Project priorities
 - [Tech Context](docs/tech-context.md) - Architecture decisions
+- [Reports](docs/reports/) - Historical completion and deployment reports
 
 ## Contributing
 

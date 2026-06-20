@@ -1,7 +1,7 @@
 # Code Atlas Makefile
 # Quick commands for development, testing, and deployment
 
-.PHONY: help setup install dev test lint format clean docker-up docker-down serve frontend backend all
+.PHONY: help setup install dev test test-fast lint format clean docker-up docker-down serve frontend backend all
 
 # Default target
 help:
@@ -24,7 +24,8 @@ help:
 	@echo "  make test         - Run all backend tests"
 	@echo "  make test-backend - Run backend tests only"
 	@echo "  make test-frontend- Run frontend tests only"
-	@echo "  make test-unit    - Run backend unit tests only (fast)"
+	@echo "  make test-fast    - Run fast backend confidence checks (<60s after install)"
+	@echo "  make test-unit    - Run broad non-integration backend tests"
 	@echo "  make test-int     - Run backend integration tests (requires Docker)"
 	@echo "  make test-cov     - Run backend tests with coverage report"
 	@echo ""
@@ -137,8 +138,17 @@ test-frontend:
 	@echo "🧪 Running frontend tests..."
 	cd frontend && npm test -- --run
 
+test-fast:
+	@echo "🧪 Running fast backend confidence checks..."
+	cd backend && uv run pytest \
+		tests/test_config.py \
+		tests/test_cost_guard.py \
+		tests/test_session_parser.py \
+		tests/test_insight_extractor.py \
+		-q
+
 test-unit:
-	@echo "🧪 Running unit tests..."
+	@echo "🧪 Running broad non-integration backend tests..."
 	cd backend && uv run pytest tests/ -v -m "not integration"
 
 test-int: docker-up
