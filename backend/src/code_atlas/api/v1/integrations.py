@@ -278,6 +278,7 @@ async def import_repo(
         for issue in ctx.issues:
             text = (issue.title or "") + " " + (issue.body or "")
             from ...integrations.github import _extract_entities_from_text
+
             for ent in _extract_entities_from_text(text):
                 entities.add((ent["name"], ent["type"]))
 

@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 try:
     from mcp.server import Server
     from mcp.types import Resource, Tool
+
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -40,9 +41,7 @@ class MCPServer:
             tool_manager: ToolManager instance for tools.
         """
         if not MCP_AVAILABLE:
-            raise ImportError(
-                "MCP SDK not available. Install with: uv add mcp"
-            )
+            raise ImportError("MCP SDK not available. Install with: uv add mcp")
 
         self.graph = graph_populator
         self.resource_manager = resource_manager

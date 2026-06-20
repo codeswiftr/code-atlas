@@ -130,15 +130,9 @@ class APIKeyManager:
             tier=tier,
             is_active=bool(row["is_active"]),
             created_at=datetime.fromisoformat(row["created_at"]),
-            expires_at=(
-                datetime.fromisoformat(row["expires_at"])
-                if row["expires_at"]
-                else None
-            ),
+            expires_at=(datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None),
             last_used_at=(
-                datetime.fromisoformat(row["last_used_at"])
-                if row["last_used_at"]
-                else None
+                datetime.fromisoformat(row["last_used_at"]) if row["last_used_at"] else None
             ),
             request_count=row["request_count"],
         )
@@ -170,11 +164,7 @@ class APIKeyManager:
         key_id = f"key_{secrets.token_hex(8)}"
 
         now = datetime.now(tz=UTC)
-        expires_at = (
-            now + timedelta(days=expires_in_days)
-            if expires_in_days
-            else None
-        )
+        expires_at = now + timedelta(days=expires_in_days) if expires_in_days else None
 
         record = APIKeyRecord(
             key_id=key_id,
@@ -318,9 +308,7 @@ class APIKeyManager:
         """
         conn = self._get_connection()
         if include_revoked:
-            cursor = conn.execute(
-                "SELECT * FROM api_keys ORDER BY created_at DESC"
-            )
+            cursor = conn.execute("SELECT * FROM api_keys ORDER BY created_at DESC")
         else:
             cursor = conn.execute(
                 "SELECT * FROM api_keys WHERE is_active = 1 ORDER BY created_at DESC"

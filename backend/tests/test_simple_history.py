@@ -38,7 +38,7 @@ class TestSimpleHistory:
             "sessions",
             "extract",
             False,
-            context={"error": "Connection timeout", "retry_count": 3}
+            context={"error": "Connection timeout", "retry_count": 3},
         )
         rate = history.get_success_rate("code-atlas", "extract")
         assert rate == 0.0
@@ -129,7 +129,7 @@ class TestSimpleHistory:
                 "sessions",
                 "extract",
                 True,
-                context={"entities": 10 + i, "duration_ms": 100 + i * 10}
+                context={"entities": 10 + i, "duration_ms": 100 + i * 10},
             )
 
         patterns = history.get_recent_patterns("code-atlas", "extract", limit=3)
@@ -182,7 +182,7 @@ class TestSimpleHistory:
         # Write some valid and invalid records
         with open(history.history_file, "w") as f:
             f.write('{"domain": "code-atlas", "action": "extract", "success": true}\n')
-            f.write('invalid json line\n')
+            f.write("invalid json line\n")
             f.write('{"domain": "code-atlas", "action": "extract"}\n')  # Missing success
             f.write('{"domain": "code-atlas", "action": "extract", "success": false}\n')
 

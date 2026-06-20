@@ -101,9 +101,7 @@ class TestSearchEndpoint:
 
         return TestClient(app)
 
-    def test_search_exact_match_high_score(
-        self, client: TestClient, mock_graph: Mock
-    ) -> None:
+    def test_search_exact_match_high_score(self, client: TestClient, mock_graph: Mock) -> None:
         """Exact matches score high."""
         response = client.get(
             "/api/v1/graph/entities/search",
@@ -119,9 +117,7 @@ class TestSearchEndpoint:
             top_result = data["results"][0]
             assert top_result["score"] >= 0.9
 
-    def test_search_fuzzy_finds_typos(
-        self, client: TestClient, mock_graph: Mock
-    ) -> None:
+    def test_search_fuzzy_finds_typos(self, client: TestClient, mock_graph: Mock) -> None:
         """Fuzzy search finds typos."""
         response = client.get(
             "/api/v1/graph/entities/search",
@@ -133,9 +129,7 @@ class TestSearchEndpoint:
         # Should find "Authentication" despite typo
         # (depends on fuzzy threshold)
 
-    def test_search_filters_by_entity_type(
-        self, client: TestClient, mock_graph: Mock
-    ) -> None:
+    def test_search_filters_by_entity_type(self, client: TestClient, mock_graph: Mock) -> None:
         """Type filter limits results."""
         # Return only Concept entities when filtered
         mock_graph.execute_query.return_value = [
@@ -170,9 +164,7 @@ class TestSearchEndpoint:
         assert data["total"] == 0
         assert data["results"] == []
 
-    def test_search_ranks_by_relevance(
-        self, client: TestClient, mock_graph: Mock
-    ) -> None:
+    def test_search_ranks_by_relevance(self, client: TestClient, mock_graph: Mock) -> None:
         """Best matches first."""
         response = client.get(
             "/api/v1/graph/entities/search",
@@ -187,9 +179,7 @@ class TestSearchEndpoint:
             # Scores should be descending
             assert scores == sorted(scores, reverse=True)
 
-    def test_search_endpoint_returns_scores(
-        self, client: TestClient, mock_graph: Mock
-    ) -> None:
+    def test_search_endpoint_returns_scores(self, client: TestClient, mock_graph: Mock) -> None:
         """API includes relevance scores."""
         response = client.get(
             "/api/v1/graph/entities/search",
@@ -203,9 +193,7 @@ class TestSearchEndpoint:
             assert "score" in result
             assert 0.0 <= result["score"] <= 1.0
 
-    def test_search_includes_timing(
-        self, client: TestClient, mock_graph: Mock
-    ) -> None:
+    def test_search_includes_timing(self, client: TestClient, mock_graph: Mock) -> None:
         """Response includes execution time."""
         response = client.get(
             "/api/v1/graph/entities/search",
@@ -217,9 +205,7 @@ class TestSearchEndpoint:
         assert "took_ms" in data
         assert data["took_ms"] >= 0
 
-    def test_search_respects_limit(
-        self, client: TestClient, mock_graph: Mock
-    ) -> None:
+    def test_search_respects_limit(self, client: TestClient, mock_graph: Mock) -> None:
         """Limit parameter works."""
         response = client.get(
             "/api/v1/graph/entities/search",

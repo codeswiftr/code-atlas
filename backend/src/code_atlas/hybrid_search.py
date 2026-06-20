@@ -196,9 +196,7 @@ class HybridSearch:
             result.combined_score = combined
 
         # Step 4: Filter and sort
-        filtered_results = [
-            r for r in results_map.values() if r.combined_score >= min_score
-        ]
+        filtered_results = [r for r in results_map.values() if r.combined_score >= min_score]
         filtered_results.sort(key=lambda x: x.combined_score, reverse=True)
 
         return filtered_results[:limit]

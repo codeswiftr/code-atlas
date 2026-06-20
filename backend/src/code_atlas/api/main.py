@@ -10,12 +10,12 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from forge_shared.middleware import RequestIDMiddleware, SecurityMiddleware
 from forge_shared.utm import UTMMiddleware
 
+from ..billing import router as billing_webhook_router
 from ..config import AtlasSettings
 from ..logging_config import get_logger
 from ..metrics import init_metrics
 from ..posthog_analytics import PostHogAnalytics
 from ..websocket import websocket_job_updates
-from ..billing import router as billing_webhook_router
 from .middleware import RateLimitMiddleware
 from .v1 import (
     admin_router,

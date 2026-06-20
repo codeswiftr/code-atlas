@@ -457,9 +457,7 @@ class DeduplicationStatsResponse(BaseResponse):
 
     total_merges: int = Field(description="Total number of merge operations")
     avg_similarity: float = Field(description="Average similarity score of merges")
-    unique_canonical_ids: int = Field(
-        description="Number of unique canonical entities with merges"
-    )
+    unique_canonical_ids: int = Field(description="Number of unique canonical entities with merges")
     recent_merges: list[MergeRecordResponse] = Field(
         default_factory=list, description="Recent merge operations"
     )

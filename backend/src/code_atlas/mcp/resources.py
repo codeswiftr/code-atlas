@@ -41,12 +41,14 @@ class ResourceManager:
         try:
             sessions = await self._list_sessions()
             for session in sessions:
-                resources.append({
-                    "uri": f"sessions://{session['id']}",
-                    "name": session.get("name", session["id"]),
-                    "description": f"Session: {session.get('project_name', 'Unknown')}",
-                    "mimeType": "application/json",
-                })
+                resources.append(
+                    {
+                        "uri": f"sessions://{session['id']}",
+                        "name": session.get("name", session["id"]),
+                        "description": f"Session: {session.get('project_name', 'Unknown')}",
+                        "mimeType": "application/json",
+                    }
+                )
         except Exception as exc:
             logger.warning("Failed to list sessions", error=str(exc))
 
@@ -54,12 +56,14 @@ class ResourceManager:
         try:
             entities = await self._list_sample_entities()
             for entity in entities:
-                resources.append({
-                    "uri": f"entities://{entity['id']}",
-                    "name": entity.get("name", entity["id"]),
-                    "description": f"Entity: {entity.get('type', 'Unknown')}",
-                    "mimeType": "application/json",
-                })
+                resources.append(
+                    {
+                        "uri": f"entities://{entity['id']}",
+                        "name": entity.get("name", entity["id"]),
+                        "description": f"Entity: {entity.get('type', 'Unknown')}",
+                        "mimeType": "application/json",
+                    }
+                )
         except Exception as exc:
             logger.warning("Failed to list entities", error=str(exc))
 

@@ -134,10 +134,7 @@ def test_graph_populator_index_configuration_options() -> None:
     """Test that index-related configuration options are properly set."""
     # Test with custom index timeout
     populator = GraphPopulator(
-        dry_run=True,
-        create_indexes=True,
-        index_timeout=60,
-        verify_indexes_after_creation=False
+        dry_run=True, create_indexes=True, index_timeout=60, verify_indexes_after_creation=False
     )
 
     assert populator.create_indexes is True
@@ -196,11 +193,7 @@ def test_graph_populator_creates_indexes_on_initialization(
     if not falkordb_available:
         pytest.skip("FalkorDB not available at localhost:6379")
 
-    populator = GraphPopulator(
-        graph_name=test_graph_name,
-        dry_run=False,
-        create_indexes=True
-    )
+    populator = GraphPopulator(graph_name=test_graph_name, dry_run=False, create_indexes=True)
 
     # Check that index creation queries were executed
     index_queries = [
@@ -226,10 +219,7 @@ def test_graph_populator_creates_indexes_on_initialization(
         referenced_files=[],
     )
     extraction = ExtractionResult(
-        entities=[
-            Entity(type="file", name="test/file.py"),
-            Entity(type="concept", name="testing")
-        ],
+        entities=[Entity(type="file", name="test/file.py"), Entity(type="concept", name="testing")],
         relationships=[
             Relationship(type="MENTIONS_CONCEPT", source="test-sess-index", target="testing")
         ],
@@ -239,35 +229,25 @@ def test_graph_populator_creates_indexes_on_initialization(
 
     # Verify data was inserted correctly (indexes help with performance)
     result = populator.client.execute_command(
-        "GRAPH.QUERY",
-        test_graph_name,
-        "MATCH (s:Session {id:'test-sess-index'}) RETURN s.project"
+        "GRAPH.QUERY", test_graph_name, "MATCH (s:Session {id:'test-sess-index'}) RETURN s.project"
     )
     assert result is not None
 
     # Query that should use File entity name index
     result = populator.client.execute_command(
-        "GRAPH.QUERY",
-        test_graph_name,
-        "MATCH (f:File {name:'test/file.py'}) RETURN f.name"
+        "GRAPH.QUERY", test_graph_name, "MATCH (f:File {name:'test/file.py'}) RETURN f.name"
     )
     assert result is not None
 
 
 @pytest.mark.integration
-def test_graph_populator_drop_indexes(
-    falkordb_available: bool, test_graph_name: str
-) -> None:
+def test_graph_populator_drop_indexes(falkordb_available: bool, test_graph_name: str) -> None:
     """Test that indexes can be dropped successfully."""
     if not falkordb_available:
         pytest.skip("FalkorDB not available at localhost:6379")
 
     # First create indexes
-    populator = GraphPopulator(
-        graph_name=test_graph_name,
-        dry_run=False,
-        create_indexes=True
-    )
+    populator = GraphPopulator(graph_name=test_graph_name, dry_run=False, create_indexes=True)
     initial_queries = len(populator.executed_queries)
 
     # Now drop them
@@ -295,7 +275,7 @@ def test_graph_populator_verify_indexes_functionality(
         graph_name=test_graph_name,
         dry_run=False,
         create_indexes=True,
-        verify_indexes_after_creation=True  # This should trigger verification
+        verify_indexes_after_creation=True,  # This should trigger verification
     )
 
     # Verification should have been called during initialization
@@ -335,11 +315,7 @@ def test_performance_with_indexes(
         pytest.skip("FalkorDB not available at localhost:6379")
 
     # Create populator with indexes
-    populator = GraphPopulator(
-        graph_name=test_graph_name,
-        dry_run=False,
-        create_indexes=True
-    )
+    populator = GraphPopulator(graph_name=test_graph_name, dry_run=False, create_indexes=True)
 
     # Insert test data that benefits from indexes
     test_sessions = []
@@ -360,7 +336,7 @@ def test_performance_with_indexes(
         extraction = ExtractionResult(
             entities=[
                 Entity(type="file", name=f"test_file_{i}.py"),
-                Entity(type="concept", name=f"concept_{i}")
+                Entity(type="concept", name=f"concept_{i}"),
             ],
             relationships=[],
             insights=[f"Insight {i}"],

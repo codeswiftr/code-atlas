@@ -31,8 +31,9 @@ COPY backend/README.md* ./
 # Copy application code
 COPY backend/src/ ./src/
 
-# Modify pyproject.toml to use local path for forge-shared
-RUN sed -i 's|../../../forge-shared|./forge-shared|g' pyproject.toml
+# Modify pyproject.toml to use local path for forge-shared inside the image.
+RUN sed -i -e 's|../../../forge-shared|./forge-shared|g' \
+    -e 's|../forge-shared|./forge-shared|g' pyproject.toml
 
 # Create virtual environment and install dependencies.
 # Use the PyTorch CPU-only wheel index so Railway's builder does not pull

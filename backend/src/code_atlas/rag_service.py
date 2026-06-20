@@ -91,7 +91,7 @@ class RAGService:
             context_entities = []
             source_ids = []
 
-            for result in search_results[:self.context_limit]:
+            for result in search_results[: self.context_limit]:
                 entity_details = self._get_entity_context(result.entity_id, result.entity_type)
                 if entity_details:
                     context_entities.append(entity_details)

@@ -22,7 +22,9 @@ class UsageEvent(BaseModel):
     event_id: str = Field(..., description="Unique event identifier")
     key_id: str = Field(..., description="API key that made the request")
     event_type: UsageEventType = Field(..., description="Type of event")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="When the event occurred")
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow, description="When the event occurred"
+    )
     endpoint: str | None = Field(None, description="API endpoint called")
     tokens_used: int = Field(default=0, ge=0, description="LLM tokens consumed (if applicable)")
     cost_usd: float = Field(default=0.0, ge=0.0, description="Cost in USD")

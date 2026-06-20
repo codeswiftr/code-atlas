@@ -17,12 +17,8 @@ class GitHubConnection(BaseModel):
     """
 
     user_id: str = Field(description="Opaque user/API-key identifier.")
-    access_token: str = Field(
-        description="Encrypted OAuth token (ciphertext, base64-encoded)."
-    )
-    connected_at: datetime = Field(
-        description="UTC timestamp when the connection was established."
-    )
+    access_token: str = Field(description="Encrypted OAuth token (ciphertext, base64-encoded).")
+    connected_at: datetime = Field(description="UTC timestamp when the connection was established.")
     github_login: str | None = Field(
         default=None,
         description="GitHub username, populated after first successful API call.",

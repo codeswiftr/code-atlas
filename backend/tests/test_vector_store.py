@@ -15,6 +15,7 @@ class TestFalkorDBVectorStore:
 
     def test_init_requires_graph_populator(self):
         """Test that FalkorDBVectorStore requires GraphPopulator."""
+
         # Mock GraphPopulator for testing
         class MockGraph:
             def execute_query(self, query: str, params: dict) -> list:
@@ -26,6 +27,7 @@ class TestFalkorDBVectorStore:
 
     def test_store_and_retrieve_embedding(self):
         """Test storing and retrieving an embedding."""
+
         class MockGraph:
             def __init__(self):
                 self.stored: dict[str, Any] = {}
@@ -58,6 +60,7 @@ class TestFalkorDBVectorStore:
 
     def test_search_similar(self):
         """Test similarity search."""
+
         class MockGraph:
             def execute_query(self, query: str, params: dict) -> list:
                 # Return mock embeddings
@@ -81,6 +84,7 @@ class TestFalkorDBVectorStore:
 
     def test_delete_embedding(self):
         """Test deleting an embedding."""
+
         class MockGraph:
             def execute_query(self, query: str, params: dict) -> list:
                 return []
@@ -116,6 +120,7 @@ class TestCreateVectorStore:
 
     def test_create_falkordb_store(self):
         """Test creating FalkorDB vector store."""
+
         class MockGraph:
             def execute_query(self, query: str, params: dict) -> list:
                 return []

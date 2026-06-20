@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 try:
     import posthog
@@ -87,7 +87,7 @@ class PostHogAnalytics:
             return
 
         try:
-            posthog.identify(user_id, properties or {})
+            cast(Any, posthog).identify(user_id, properties or {})
         except Exception as e:
             logger.error(f"PostHog identify failed: {e}")
 

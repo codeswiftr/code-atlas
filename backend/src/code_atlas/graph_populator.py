@@ -70,7 +70,7 @@ class GraphPopulator:
             # Note: Run only once - FalkorDB will error if index already exists
             "CALL db.idx.fulltext.createNodeIndex('File', 'name')",
             "CALL db.idx.fulltext.createNodeIndex('Concept', 'name')",
-        ]
+        ],
     }
 
     def __post_init__(self) -> None:
@@ -97,6 +97,7 @@ class GraphPopulator:
         """Lazily create entity resolver for deduplication."""
         if self._resolver is None and self.enable_deduplication:
             from .entity_resolver import EntityResolver
+
             self._resolver = EntityResolver(
                 graph=self,
                 similarity_threshold=self.similarity_threshold,
@@ -380,6 +381,7 @@ class GraphPopulator:
     def _null_context_manager(self):
         """Null context manager for when metrics are disabled."""
         from contextlib import nullcontext
+
         return nullcontext()
 
     def _ensure_indexes(self) -> None:
@@ -428,14 +430,14 @@ class GraphPopulator:
             total_requested=total_indexes,
             created=created_indexes,
             failed=failed_indexes,
-            graph_name=self.graph_name
+            graph_name=self.graph_name,
         )
 
     def list_indexes(self) -> dict[str, list[str]]:
         """List all indexes currently defined in the system."""
         return self.INDEXES.copy()
 
-    def verify_indexes(self) -> dict[str, dict[str, bool]]:
+    def verify_indexes(self) -> dict[str, dict[str, bool] | str]:
         """Verify which indexes exist in the database.
 
         Returns:
@@ -444,10 +446,10 @@ class GraphPopulator:
         if not self.client:
             return {"error": "No database connection available"}
 
-        result = {}
+        result: dict[str, dict[str, bool] | str] = {}
 
         for category, index_queries in self.INDEXES.items():
-            result[category] = {}
+            category_result: dict[str, bool] = {}
 
             for index_query in index_queries:
                 # Extract index name from query for verification
@@ -467,15 +469,13 @@ class GraphPopulator:
                         # FalkorDB doesn't have a direct index status query
                         # We'll consider the index as existing if we can run a query that uses it
                         test_query = "SHOW INDEXES"
-                        self.client.execute_command(
-                            "GRAPH.QUERY", self.graph_name, test_query
-                        )
+                        self.client.execute_command("GRAPH.QUERY", self.graph_name, test_query)
                         # For now, assume index exists if no error occurred
-                        result[category][index_name] = True
+                        category_result[index_name] = True
                     except redis.RedisError:
-                        result[category][index_name] = False
-                else:
-                    result[category][index_query] = None  # Unknown status
+                        category_result[index_name] = False
+
+            result[category] = category_result
 
         return result
 
@@ -513,6 +513,7 @@ class GraphPopulator:
                         # Full-text indexes: CALL db.idx.fulltext.drop('Label')
                         # Extract label from createNodeIndex('Label', 'property')
                         import re
+
                         match = re.search(r"createNodeIndex\('(\w+)'", index_query)
                         if match:
                             label = match.group(1)
@@ -542,7 +543,7 @@ class GraphPopulator:
                 "MATCH (s:Session) RETURN s LIMIT 1",
                 "MATCH (f:File) RETURN f LIMIT 1",
                 "MATCH (c:Concept) RETURN c LIMIT 1",
-                "MATCH (i:Insight) RETURN i LIMIT 1"
+                "MATCH (i:Insight) RETURN i LIMIT 1",
             ]
 
             for test_query in test_queries:

@@ -7,7 +7,7 @@ import os
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import redis
 import typer
@@ -17,14 +17,14 @@ from rich.table import Table
 
 from .config import AtlasSettings, SessionFilter
 from .graph_populator import GraphPopulator
-from .insight_extractor import InsightExtractor
+from .insight_extractor import InsightExtractor, LLMProvider
 from .logging_config import configure_logging
 from .metrics import init_metrics
 from .pipeline import PipelineRunner
 from .rag_service import create_rag_service
 from .server import MetricsServer
 from .session_discovery import SessionDiscovery
-from .vector_store import VectorStore
+from .vector_store import FalkorDBVectorStore as VectorStore
 
 # Configure structured logging on module import
 log_level = os.getenv("CODE_ATLAS_LOG_LEVEL", "INFO")
@@ -257,7 +257,7 @@ def index_sessions(
 
     extractor = InsightExtractor(
         use_llm=use_llm,
-        provider=llm_provider if llm_provider else None,
+        provider=cast(LLMProvider, llm_provider) if llm_provider else None,
         openrouter_api_key=settings.openrouter_api_key,
         openrouter_model=settings.openrouter_model,
         openrouter_base_url=settings.openrouter_base_url,
@@ -455,7 +455,7 @@ def query_graph(
             graph_name=graph,
             dry_run=False,
         )
-        vector_store = VectorStore(redis_client=redis_client)
+        vector_store = VectorStore(populator)
 
         # Create RAG service
         rag = create_rag_service(

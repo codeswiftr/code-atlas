@@ -1,6 +1,5 @@
 """Pydantic schemas for embedding-related API requests and responses."""
 
-
 from pydantic import BaseModel, Field
 
 

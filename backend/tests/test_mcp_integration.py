@@ -18,11 +18,13 @@ class TestMCPServerInitialization:
     def test_mcp_server_import_works(self):
         """Server class can be imported from mcp.server."""
         from mcp.server import Server
+
         assert Server is not None
 
     def test_mcp_types_import_works(self):
         """MCP types can be imported."""
         from mcp.types import Resource, Tool
+
         assert Resource is not None
         assert Tool is not None
 
@@ -61,11 +63,13 @@ class TestMCPToolDefinitions:
     def test_tools_module_exists(self):
         """Tools module should exist and be importable."""
         from code_atlas.mcp import tools
+
         assert tools is not None
 
     def test_resources_module_exists(self):
         """Resources module should exist and be importable."""
         from code_atlas.mcp import resources
+
         assert resources is not None
 
 
@@ -75,4 +79,5 @@ class TestMCPWithoutSDK:
     def test_mcp_available_flag_exists(self):
         """MCP_AVAILABLE flag should always be defined."""
         from code_atlas.mcp.server import MCP_AVAILABLE
+
         assert isinstance(MCP_AVAILABLE, bool)

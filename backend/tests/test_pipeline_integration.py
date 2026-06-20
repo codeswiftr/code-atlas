@@ -259,7 +259,7 @@ def test_pipeline_end_to_end_with_falkordb(
 
     # Verify stats
     assert stats.sessions_processed == 3
-    assert stats.entities_created == 5
+    assert stats.entities_created == 6
     assert len(stats.errors) == 0
 
     # Query database to verify nodes created

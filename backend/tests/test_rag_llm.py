@@ -41,7 +41,8 @@ class MockGraphPopulator:
             return [
                 {
                     "e": {
-                        "id": params["entity_id"], "name": "TestEntity",
+                        "id": params["entity_id"],
+                        "name": "TestEntity",
                         "description": "A test entity",
                     },
                     "labels": ["Concept"],

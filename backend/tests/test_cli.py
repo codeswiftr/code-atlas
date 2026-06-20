@@ -78,8 +78,8 @@ def sample_extraction() -> ExtractionResult:
 # =============================================================================
 
 
-@patch("code_atlas.cli.load_settings")       # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 1st -> mock_discovery_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 1st -> mock_discovery_class
 def test_discover_normal_output(
     mock_discovery_class: Mock,
     mock_load_settings: Mock,
@@ -100,8 +100,8 @@ def test_discover_normal_output(
     assert "test_project" in result.stdout
 
 
-@patch("code_atlas.cli.load_settings")       # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 1st -> mock_discovery_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 1st -> mock_discovery_class
 def test_discover_json_output(
     mock_discovery_class: Mock,
     mock_load_settings: Mock,
@@ -127,8 +127,8 @@ def test_discover_json_output(
     assert data["sessions"][0]["project"] == "test_project"
 
 
-@patch("code_atlas.cli.load_settings")       # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 1st -> mock_discovery_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 1st -> mock_discovery_class
 def test_discover_with_filters(
     mock_discovery_class: Mock,
     mock_load_settings: Mock,
@@ -160,8 +160,8 @@ def test_discover_with_filters(
     assert data["count"] == 1
 
 
-@patch("code_atlas.cli.load_settings")       # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 1st -> mock_discovery_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 1st -> mock_discovery_class
 def test_discover_root_not_found(
     mock_discovery_class: Mock,
     mock_load_settings: Mock,
@@ -185,11 +185,11 @@ def test_discover_root_not_found(
 # =============================================================================
 
 
-@patch("code_atlas.cli.load_settings")       # injected 5th -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 4th -> mock_discovery_class
-@patch("code_atlas.cli.InsightExtractor")    # injected 3rd -> mock_extractor_class
-@patch("code_atlas.cli.GraphPopulator")      # injected 2nd -> mock_populator_class
-@patch("code_atlas.cli.PipelineRunner")      # injected 1st -> mock_runner_class
+@patch("code_atlas.cli.load_settings")  # injected 5th -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 4th -> mock_discovery_class
+@patch("code_atlas.cli.InsightExtractor")  # injected 3rd -> mock_extractor_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 2nd -> mock_populator_class
+@patch("code_atlas.cli.PipelineRunner")  # injected 1st -> mock_runner_class
 def test_index_sessions_json_output(
     mock_runner_class: Mock,
     mock_populator_class: Mock,
@@ -232,11 +232,11 @@ def test_index_sessions_json_output(
     assert data["stats"]["estimated_cost_usd"] == 0.015
 
 
-@patch("code_atlas.cli.load_settings")       # injected 5th -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 4th -> mock_discovery_class
-@patch("code_atlas.cli.InsightExtractor")    # injected 3rd -> mock_extractor_class
-@patch("code_atlas.cli.GraphPopulator")      # injected 2nd -> mock_populator_class
-@patch("code_atlas.cli.PipelineRunner")      # injected 1st -> mock_runner_class
+@patch("code_atlas.cli.load_settings")  # injected 5th -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 4th -> mock_discovery_class
+@patch("code_atlas.cli.InsightExtractor")  # injected 3rd -> mock_extractor_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 2nd -> mock_populator_class
+@patch("code_atlas.cli.PipelineRunner")  # injected 1st -> mock_runner_class
 def test_index_dry_run_mode(
     mock_runner_class: Mock,
     mock_populator_class: Mock,
@@ -275,8 +275,8 @@ def test_index_dry_run_mode(
     assert data["dry_run"] is True
 
 
-@patch("code_atlas.cli.load_settings")       # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 1st -> mock_discovery_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 1st -> mock_discovery_class
 def test_index_invalid_provider(
     mock_discovery_class: Mock,
     mock_load_settings: Mock,
@@ -301,11 +301,11 @@ def test_index_invalid_provider(
     assert "openrouter" in data["error"]["details"]["valid"]
 
 
-@patch("code_atlas.cli.load_settings")       # injected 5th -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 4th -> mock_discovery_class
-@patch("code_atlas.cli.InsightExtractor")    # injected 3rd -> mock_extractor_class
-@patch("code_atlas.cli.GraphPopulator")      # injected 2nd -> mock_populator_class
-@patch("code_atlas.cli.PipelineRunner")      # injected 1st -> mock_runner_class
+@patch("code_atlas.cli.load_settings")  # injected 5th -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 4th -> mock_discovery_class
+@patch("code_atlas.cli.InsightExtractor")  # injected 3rd -> mock_extractor_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 2nd -> mock_populator_class
+@patch("code_atlas.cli.PipelineRunner")  # injected 1st -> mock_runner_class
 def test_index_no_sessions_processed(
     mock_runner_class: Mock,
     mock_populator_class: Mock,
@@ -349,11 +349,11 @@ def test_index_no_sessions_processed(
 # =============================================================================
 
 
-@patch("code_atlas.cli.load_settings")       # injected 5th -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 4th -> mock_discovery_class
-@patch("code_atlas.cli.InsightExtractor")    # injected 3rd -> mock_extractor_class
-@patch("code_atlas.cli.GraphPopulator")      # injected 2nd -> mock_populator_class
-@patch("code_atlas.cli.PipelineRunner")      # injected 1st -> mock_runner_class
+@patch("code_atlas.cli.load_settings")  # injected 5th -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 4th -> mock_discovery_class
+@patch("code_atlas.cli.InsightExtractor")  # injected 3rd -> mock_extractor_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 2nd -> mock_populator_class
+@patch("code_atlas.cli.PipelineRunner")  # injected 1st -> mock_runner_class
 def test_run_delegates_to_index(
     mock_runner_class: Mock,
     mock_populator_class: Mock,
@@ -397,11 +397,11 @@ def test_run_delegates_to_index(
 # =============================================================================
 
 
-@patch("code_atlas.cli.load_settings")           # injected 5th -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")              # injected 4th -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")           # injected 3rd -> mock_populator_class
-@patch("code_atlas.cli.VectorStore")              # injected 2nd -> mock_vector_store_class
-@patch("code_atlas.cli.create_rag_service")       # injected 1st -> mock_create_rag
+@patch("code_atlas.cli.load_settings")  # injected 5th -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 4th -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 3rd -> mock_populator_class
+@patch("code_atlas.cli.VectorStore")  # injected 2nd -> mock_vector_store_class
+@patch("code_atlas.cli.create_rag_service")  # injected 1st -> mock_create_rag
 def test_query_json_output(
     mock_create_rag: Mock,
     mock_vector_store_class: Mock,
@@ -442,8 +442,8 @@ def test_query_json_output(
     assert len(data["context_entities"]) == 2
 
 
-@patch("code_atlas.cli.load_settings")    # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 1st -> mock_redis_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 1st -> mock_redis_class
 def test_query_connection_error(
     mock_redis_class: Mock,
     mock_load_settings: Mock,
@@ -464,11 +464,11 @@ def test_query_connection_error(
     assert data["error"]["code"] == "CONNECTION_ERROR"
 
 
-@patch("code_atlas.cli.load_settings")           # injected 5th -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")              # injected 4th -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")           # injected 3rd -> mock_populator_class
-@patch("code_atlas.cli.VectorStore")              # injected 2nd -> mock_vector_store_class
-@patch("code_atlas.cli.create_rag_service")       # injected 1st -> mock_create_rag
+@patch("code_atlas.cli.load_settings")  # injected 5th -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 4th -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 3rd -> mock_populator_class
+@patch("code_atlas.cli.VectorStore")  # injected 2nd -> mock_vector_store_class
+@patch("code_atlas.cli.create_rag_service")  # injected 1st -> mock_create_rag
 def test_query_with_filters(
     mock_create_rag: Mock,
     mock_vector_store_class: Mock,
@@ -509,9 +509,9 @@ def test_query_with_filters(
 # =============================================================================
 
 
-@patch("code_atlas.cli.load_settings")    # injected 3rd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 2nd -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")   # injected 1st -> mock_populator_class
+@patch("code_atlas.cli.load_settings")  # injected 3rd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 2nd -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 1st -> mock_populator_class
 def test_export_json_format(
     mock_populator_class: Mock,
     mock_redis_class: Mock,
@@ -548,8 +548,8 @@ def test_export_json_format(
     assert data["entity_count"] >= 0
 
 
-@patch("code_atlas.cli.load_settings")    # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 1st -> mock_redis_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 1st -> mock_redis_class
 def test_export_invalid_format(
     mock_redis_class: Mock,
     mock_load_settings: Mock,
@@ -575,9 +575,9 @@ def test_export_invalid_format(
     assert "graphml" in data["error"]["details"]["valid"]
 
 
-@patch("code_atlas.cli.load_settings")    # injected 3rd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 2nd -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")   # injected 1st -> mock_populator_class
+@patch("code_atlas.cli.load_settings")  # injected 3rd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 2nd -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 1st -> mock_populator_class
 def test_export_cypher_format(
     mock_populator_class: Mock,
     mock_redis_class: Mock,
@@ -615,9 +615,9 @@ def test_export_cypher_format(
 # =============================================================================
 
 
-@patch("code_atlas.cli.load_settings")    # injected 3rd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 2nd -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")   # injected 1st -> mock_populator_class
+@patch("code_atlas.cli.load_settings")  # injected 3rd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 2nd -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 1st -> mock_populator_class
 def test_status_json_output(
     mock_populator_class: Mock,
     mock_redis_class: Mock,
@@ -650,8 +650,8 @@ def test_status_json_output(
     assert data["relationships"]["total"] == 25
 
 
-@patch("code_atlas.cli.load_settings")    # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 1st -> mock_redis_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 1st -> mock_redis_class
 def test_status_connection_failed(
     mock_redis_class: Mock,
     mock_load_settings: Mock,
@@ -678,8 +678,8 @@ def test_status_connection_failed(
 # =============================================================================
 
 
-@patch("code_atlas.cli.load_settings")    # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 1st -> mock_redis_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 1st -> mock_redis_class
 def test_report_json_output(
     mock_redis_class: Mock,
     mock_load_settings: Mock,
@@ -717,8 +717,8 @@ def test_report_json_output(
     assert "stats" in data
 
 
-@patch("code_atlas.cli.load_settings")    # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 1st -> mock_redis_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 1st -> mock_redis_class
 def test_report_connection_error(
     mock_redis_class: Mock,
     mock_load_settings: Mock,
@@ -744,9 +744,9 @@ def test_report_connection_error(
 # =============================================================================
 
 
-@patch("code_atlas.cli.load_settings")    # injected 3rd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 2nd -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")   # injected 1st -> mock_populator_class
+@patch("code_atlas.cli.load_settings")  # injected 3rd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 2nd -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 1st -> mock_populator_class
 def test_indexes_list_action(
     mock_populator_class: Mock,
     mock_redis_class: Mock,
@@ -777,9 +777,9 @@ def test_indexes_list_action(
     assert "Session" in data["indexes"]
 
 
-@patch("code_atlas.cli.load_settings")    # injected 3rd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 2nd -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")   # injected 1st -> mock_populator_class
+@patch("code_atlas.cli.load_settings")  # injected 3rd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 2nd -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 1st -> mock_populator_class
 def test_indexes_create_action(
     mock_populator_class: Mock,
     mock_redis_class: Mock,
@@ -809,9 +809,9 @@ def test_indexes_create_action(
     assert data["indexes_created"] == 2
 
 
-@patch("code_atlas.cli.load_settings")    # injected 3rd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 2nd -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")   # injected 1st -> mock_populator_class
+@patch("code_atlas.cli.load_settings")  # injected 3rd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 2nd -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 1st -> mock_populator_class
 def test_indexes_verify_action(
     mock_populator_class: Mock,
     mock_redis_class: Mock,
@@ -841,9 +841,9 @@ def test_indexes_verify_action(
     assert "Session" in data["result"]
 
 
-@patch("code_atlas.cli.load_settings")    # injected 3rd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 2nd -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")   # injected 1st -> mock_populator_class
+@patch("code_atlas.cli.load_settings")  # injected 3rd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 2nd -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 1st -> mock_populator_class
 def test_indexes_drop_action(
     mock_populator_class: Mock,
     mock_redis_class: Mock,
@@ -869,8 +869,8 @@ def test_indexes_drop_action(
     assert data["action"] == "drop"
 
 
-@patch("code_atlas.cli.load_settings")    # injected 2nd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 1st -> mock_redis_class
+@patch("code_atlas.cli.load_settings")  # injected 2nd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 1st -> mock_redis_class
 def test_indexes_invalid_action(
     mock_redis_class: Mock,
     mock_load_settings: Mock,
@@ -896,7 +896,7 @@ def test_indexes_invalid_action(
 # =============================================================================
 
 
-@patch("code_atlas.cli.load_settings")    # injected 1st -> mock_load_settings
+@patch("code_atlas.cli.load_settings")  # injected 1st -> mock_load_settings
 def test_metrics_disabled_error(
     mock_load_settings: Mock,
     runner,
@@ -914,7 +914,7 @@ def test_metrics_disabled_error(
     assert data["error"]["code"] == "METRICS_DISABLED"
 
 
-@patch("code_atlas.cli.load_settings")    # injected 1st -> mock_load_settings
+@patch("code_atlas.cli.load_settings")  # injected 1st -> mock_load_settings
 def test_metrics_enabled_json_output(
     mock_load_settings: Mock,
     runner,
@@ -969,7 +969,7 @@ def test_app_no_args_shows_help(runner) -> None:
     assert "Utilities for turning Claude sessions" in result.stdout
 
 
-@patch("code_atlas.cli.load_settings")    # injected 1st -> mock_load_settings
+@patch("code_atlas.cli.load_settings")  # injected 1st -> mock_load_settings
 def test_invalid_config_file(
     mock_load_settings: Mock,
     runner,
@@ -984,11 +984,11 @@ def test_invalid_config_file(
     assert result.exit_code != 0
 
 
-@patch("code_atlas.cli.load_settings")       # injected 5th -> mock_load_settings
-@patch("code_atlas.cli.SessionDiscovery")    # injected 4th -> mock_discovery_class
-@patch("code_atlas.cli.InsightExtractor")    # injected 3rd -> mock_extractor_class
-@patch("code_atlas.cli.GraphPopulator")      # injected 2nd -> mock_populator_class
-@patch("code_atlas.cli.PipelineRunner")      # injected 1st -> mock_runner_class
+@patch("code_atlas.cli.load_settings")  # injected 5th -> mock_load_settings
+@patch("code_atlas.cli.SessionDiscovery")  # injected 4th -> mock_discovery_class
+@patch("code_atlas.cli.InsightExtractor")  # injected 3rd -> mock_extractor_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 2nd -> mock_populator_class
+@patch("code_atlas.cli.PipelineRunner")  # injected 1st -> mock_runner_class
 def test_index_with_use_llm_flag(
     mock_runner_class: Mock,
     mock_populator_class: Mock,
@@ -1029,9 +1029,9 @@ def test_index_with_use_llm_flag(
     assert data["success"] is True
 
 
-@patch("code_atlas.cli.load_settings")    # injected 3rd -> mock_load_settings
-@patch("code_atlas.cli.redis.Redis")      # injected 2nd -> mock_redis_class
-@patch("code_atlas.cli.GraphPopulator")   # injected 1st -> mock_populator_class
+@patch("code_atlas.cli.load_settings")  # injected 3rd -> mock_load_settings
+@patch("code_atlas.cli.redis.Redis")  # injected 2nd -> mock_redis_class
+@patch("code_atlas.cli.GraphPopulator")  # injected 1st -> mock_populator_class
 def test_export_with_entity_type_filter(
     mock_populator_class: Mock,
     mock_redis_class: Mock,

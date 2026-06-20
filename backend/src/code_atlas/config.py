@@ -5,6 +5,7 @@ from __future__ import annotations
 import tomllib
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
@@ -301,7 +302,7 @@ class AtlasSettings(BaseSettings):
             data = tomllib.load(f)
 
         # Flatten nested structure: merge all sections into single dict
-        flat = {}
+        flat: dict[str, Any] = {}
         for section, values in data.items():
             if isinstance(values, dict):
                 # Expand paths for path-like fields

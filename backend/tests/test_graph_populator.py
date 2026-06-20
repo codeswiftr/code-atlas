@@ -251,9 +251,7 @@ def test_graph_populator_provenance_metadata(
 
 
 @pytest.mark.integration
-def test_graph_populator_cleanup(
-    falkordb_available: bool, test_graph_name: str
-) -> None:
+def test_graph_populator_cleanup(falkordb_available: bool, test_graph_name: str) -> None:
     """Test data deletion and cleanup."""
     if not falkordb_available:
         pytest.skip("FalkorDB not available at localhost:6379")
@@ -288,11 +286,7 @@ def test_graph_populator_index_creation_during_initialization(
     if not falkordb_available:
         pytest.skip("FalkorDB not available at localhost:6379")
 
-    populator = GraphPopulator(
-        graph_name=test_graph_name,
-        dry_run=False,
-        create_indexes=True
-    )
+    populator = GraphPopulator(graph_name=test_graph_name, dry_run=False, create_indexes=True)
 
     # Check that index creation queries were executed
     index_queries = [
@@ -303,9 +297,9 @@ def test_graph_populator_index_creation_during_initialization(
     # Verify critical indexes exist
     index_query_strings = " ".join(index_queries)
     assert ":Session(id)" in index_query_strings, "Missing Session id index"
-    assert (
-        ":File(name)" in index_query_strings or ":Concept(name)" in index_query_strings
-    ), "Missing entity name index"
+    assert ":File(name)" in index_query_strings or ":Concept(name)" in index_query_strings, (
+        "Missing entity name index"
+    )
 
 
 @pytest.mark.integration
@@ -316,19 +310,13 @@ def test_graph_populator_with_disabled_indexes(
     if not falkordb_available:
         pytest.skip("FalkorDB not available at localhost:6379")
 
-    populator = GraphPopulator(
-        graph_name=test_graph_name,
-        dry_run=False,
-        create_indexes=False
-    )
+    populator = GraphPopulator(graph_name=test_graph_name, dry_run=False, create_indexes=False)
 
     # No index creation queries should be executed
     index_queries = [
         q for q in populator.executed_queries if "CREATE INDEX" in q or "FULLTEXT INDEX" in q
     ]
-    assert len(index_queries) == 0, (
-        "Index creation queries should not be executed when disabled"
-    )
+    assert len(index_queries) == 0, "Index creation queries should not be executed when disabled"
 
     # Test that normal operations still work
     metadata = SessionMetadata(

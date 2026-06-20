@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -22,6 +21,16 @@ from .schemas.auth import APITier
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/billing", tags=["Billing"])
+
+
+def _stripe_id(value: Any) -> str | None:
+    """Return a Stripe resource id from SDK objects, strings, or null values."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    resource_id = getattr(value, "id", None)
+    return resource_id if isinstance(resource_id, str) else None
 
 
 class SubscriptionTier(str, Enum):
@@ -145,7 +154,7 @@ def create_checkout_session(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Billing not configured",
         )
-    
+
     price_id = get_price_id(tier)
     if not price_id or "placeholder" in price_id:
         raise HTTPException(
@@ -343,8 +352,8 @@ async def _handle_checkout_completed(session: stripe.checkout.Session) -> None:
     metadata = session.metadata or {}
     tier_str = metadata.get("tier", "")
     user_id = metadata.get("user_id", "")
-    customer_id = session.customer
-    subscription_id = session.subscription
+    customer_id = _stripe_id(session.customer)
+    subscription_id = _stripe_id(session.subscription)
 
     logger.info(
         "Checkout completed - upgrading tier",
@@ -401,7 +410,7 @@ async def _handle_subscription_updated(subscription: stripe.Subscription) -> Non
     metadata = subscription.metadata or {}
     user_id = metadata.get("user_id", "")
     new_status = subscription.status  # e.g. active, past_due, canceled, trialing
-    customer_id = subscription.customer
+    customer_id = _stripe_id(subscription.customer)
 
     logger.info(
         "Subscription updated",
@@ -456,7 +465,7 @@ async def _handle_subscription_deleted(subscription: stripe.Subscription) -> Non
     """
     metadata = subscription.metadata or {}
     user_id = metadata.get("user_id", "")
-    customer_id = subscription.customer
+    customer_id = _stripe_id(subscription.customer)
 
     logger.info(
         "Subscription canceled - downgrading to free",
@@ -501,7 +510,7 @@ async def _handle_payment_failed(invoice: stripe.Invoice) -> None:
     retries are exhausted, at which point _handle_subscription_updated will
     perform the tier downgrade.
     """
-    customer_id = invoice.customer
+    customer_id = _stripe_id(invoice.customer)
     invoice_id = invoice.id
     attempt_count = getattr(invoice, "attempt_count", None)
 

@@ -1,10 +1,11 @@
 """Tests for UsageTracker."""
 
-import pytest
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from code_atlas.schemas.usage import UsageEventType
-from code_atlas.usage_tracker import UsageTracker, get_tracker, reset_tracker
+from code_atlas.usage_tracker import UsageTracker, reset_tracker
 
 
 @pytest.fixture
@@ -61,7 +62,7 @@ class TestUsageTracker:
     def test_get_events_with_since_filter(self, tracker):
         """Test filtering events by timestamp."""
         # Record an old event
-        old_event = tracker.record_event(
+        tracker.record_event(
             key_id="key_filter",
             event_type=UsageEventType.API_REQUEST,
         )
@@ -82,7 +83,7 @@ class TestUsageTracker:
     def test_get_hourly_usage(self, tracker):
         """Test hourly usage count for rate limiting."""
         # Record 3 events
-        for i in range(3):
+        for _i in range(3):
             tracker.record_event(
                 key_id="key_rate",
                 event_type=UsageEventType.API_REQUEST,

@@ -248,9 +248,7 @@ async def test_execute_query_count_all(populated_store):
 
 @pytest.mark.asyncio
 async def test_execute_query_count_by_label(populated_store):
-    result = await populated_store.execute_query(
-        "MATCH (n:Session) RETURN count(n) as total"
-    )
+    result = await populated_store.execute_query("MATCH (n:Session) RETURN count(n) as total")
     assert result[0]["total"] == 2
 
 

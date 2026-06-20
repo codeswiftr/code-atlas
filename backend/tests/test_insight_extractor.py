@@ -370,9 +370,9 @@ def test_openrouter_cost_calculation(mock_cost: Mock, mock_completion: Mock) -> 
     # Mock LiteLLM response
     mock_response = Mock()
     mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = (
-        '{"entities": [], "relationships": [], "insights": []}'
-    )
+    mock_response.choices[
+        0
+    ].message.content = '{"entities": [], "relationships": [], "insights": []}'
     mock_response.usage = Mock()
     mock_response.usage.prompt_tokens = 100
     mock_response.usage.completion_tokens = 50
@@ -460,6 +460,5 @@ def test_openrouter_real_api() -> None:
     # Print result for visibility
     method = "LLM" if result.extraction_method == "llm" else "heuristic (LLM fallback)"
     print(  # noqa: T201
-        f"\n OpenRouter API test completed via {method}."
-        f" Cost: ${result.estimated_cost_usd:.6f}"
+        f"\n OpenRouter API test completed via {method}. Cost: ${result.estimated_cost_usd:.6f}"
     )

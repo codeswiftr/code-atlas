@@ -103,15 +103,9 @@ class JobStore:
             job_id=row["job_id"],
             status=JobStatus(row["status"]),
             created_at=datetime.fromisoformat(row["created_at"]),
-            started_at=(
-                datetime.fromisoformat(row["started_at"])
-                if row["started_at"]
-                else None
-            ),
+            started_at=(datetime.fromisoformat(row["started_at"]) if row["started_at"] else None),
             completed_at=(
-                datetime.fromisoformat(row["completed_at"])
-                if row["completed_at"]
-                else None
+                datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None
             ),
             total_sessions=row["total_sessions"],
             processed_sessions=row["processed_sessions"],
@@ -256,7 +250,7 @@ class JobStore:
         cursor = conn.execute(
             f"""
             UPDATE jobs
-            SET {', '.join(set_parts)}
+            SET {", ".join(set_parts)}
             WHERE job_id = ?
             """,
             params,
@@ -265,9 +259,7 @@ class JobStore:
 
         updated = cursor.rowcount > 0
         if updated:
-            logger.debug(
-                "Job status updated", job_id=job_id, status=status.value
-            )
+            logger.debug("Job status updated", job_id=job_id, status=status.value)
         return updated
 
     def cleanup_old_jobs(self, days: int = 7) -> int:

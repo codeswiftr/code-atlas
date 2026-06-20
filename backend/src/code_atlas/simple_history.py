@@ -39,12 +39,7 @@ class SimpleHistory:
             self.history_file.touch()
 
     def record(
-        self,
-        domain: str,
-        project: str,
-        action: str,
-        success: bool,
-        context: dict | None = None
+        self, domain: str, project: str, action: str, success: bool, context: dict | None = None
     ) -> None:
         """
         Record an action outcome.
@@ -62,7 +57,7 @@ class SimpleHistory:
             "project": project,
             "action": action,
             "success": success,
-            "context": context or {}
+            "context": context or {},
         }
 
         # Append to JSONL file (atomic write)
@@ -89,12 +84,7 @@ class SimpleHistory:
         successes = sum(1 for r in matching if r["success"])
         return successes / len(matching)
 
-    def get_recent_patterns(
-        self,
-        domain: str,
-        action: str,
-        limit: int = 5
-    ) -> list[dict]:
+    def get_recent_patterns(self, domain: str, action: str, limit: int = 5) -> list[dict]:
         """
         Get recent successful patterns for context.
 
@@ -111,10 +101,7 @@ class SimpleHistory:
         return successful[:limit]
 
     def should_proceed(
-        self,
-        domain: str,
-        action: str,
-        threshold: float = 0.6
+        self, domain: str, action: str, threshold: float = 0.6
     ) -> tuple[bool, float]:
         """
         Simple decision helper based on historical success rate.
@@ -130,12 +117,7 @@ class SimpleHistory:
         success_rate = self.get_success_rate(domain, action)
         return (success_rate >= threshold, success_rate)
 
-    def _get_matching_records(
-        self,
-        domain: str,
-        action: str,
-        limit: int
-    ) -> list[dict]:
+    def _get_matching_records(self, domain: str, action: str, limit: int) -> list[dict]:
         """
         Get matching records from history file.
 
@@ -157,9 +139,11 @@ class SimpleHistory:
             try:
                 record = json.loads(line)
                 # Validate required fields
-                if (record["domain"] == domain and
-                    record["action"] == action and
-                    "success" in record):
+                if (
+                    record["domain"] == domain
+                    and record["action"] == action
+                    and "success" in record
+                ):
                     matching.append(record)
                     if len(matching) >= limit:
                         break

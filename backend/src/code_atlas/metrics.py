@@ -27,6 +27,7 @@ logger = get_logger(__name__)
 @dataclass
 class MetricsConfig:
     """Configuration for metrics collection."""
+
     enabled: bool = False
     host: str = "0.0.0.0"
     port: int = 8000
@@ -77,26 +78,26 @@ class AtlasMetrics:
             f"{ns}_pipeline_sessions_total",
             "Total number of sessions processed",
             ["project", "status"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.pipeline_processing_time = Histogram(
             f"{ns}_pipeline_processing_seconds",
             "Time spent processing sessions",
             ["project"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.pipeline_messages_processed = Counter(
             f"{ns}_pipeline_messages_total",
             "Total number of messages processed",
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.pipeline_tokens_processed = Counter(
             f"{ns}_pipeline_tokens_total",
             "Total number of tokens processed",
-            registry=self.registry
+            registry=self.registry,
         )
 
         # Database metrics
@@ -104,27 +105,27 @@ class AtlasMetrics:
             f"{ns}_db_nodes_created_total",
             "Total number of nodes created in database",
             ["node_type"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.db_relationships_created = Counter(
             f"{ns}_db_relationships_created_total",
             "Total number of relationships created in database",
             ["relationship_type"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.db_query_duration = Histogram(
             f"{ns}_db_query_seconds",
             "Database query execution time",
             ["operation"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.db_connections_active = Gauge(
             f"{ns}_db_connections_active",
             "Number of active database connections",
-            registry=self.registry
+            registry=self.registry,
         )
 
         # Extraction metrics
@@ -132,28 +133,28 @@ class AtlasMetrics:
             f"{ns}_extraction_requests_total",
             "Total number of extraction requests",
             ["method", "model"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.extraction_duration = Histogram(
             f"{ns}_extraction_seconds",
             "Time spent on insight extraction",
             ["method"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.extraction_entities_created = Counter(
             f"{ns}_extraction_entities_created_total",
             "Total number of entities extracted",
             ["entity_type"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.extraction_relationships_created = Counter(
             f"{ns}_extraction_relationships_created_total",
             "Total number of relationships extracted",
             ["relationship_type"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         # Cost metrics
@@ -161,13 +162,11 @@ class AtlasMetrics:
             f"{ns}_cost_total_usd",
             "Total cost incurred in USD",
             ["model", "operation"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.cost_per_session = Histogram(
-            f"{ns}_cost_per_session_usd",
-            "Cost per session in USD",
-            registry=self.registry
+            f"{ns}_cost_per_session_usd", "Cost per session in USD", registry=self.registry
         )
 
         # Error metrics
@@ -175,34 +174,32 @@ class AtlasMetrics:
             f"{ns}_errors_total",
             "Total number of errors",
             ["component", "error_type"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.error_rate = Gauge(
             f"{ns}_error_rate",
             "Current error rate (errors per minute)",
             ["component"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         # Business metrics - User activity
         self.api_keys_active = Gauge(
-            f"{ns}_api_keys_active",
-            "Number of active API keys",
-            registry=self.registry
+            f"{ns}_api_keys_active", "Number of active API keys", registry=self.registry
         )
 
         self.api_requests_by_key = Counter(
             f"{ns}_api_requests_by_key_total",
             "Total API requests per API key",
             ["key_id", "endpoint"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.unique_users_daily = Gauge(
             f"{ns}_unique_users_daily",
             "Number of unique API keys used in last 24 hours",
-            registry=self.registry
+            registry=self.registry,
         )
 
         # Business metrics - Graph growth
@@ -210,33 +207,31 @@ class AtlasMetrics:
             f"{ns}_graph_entities_daily_total",
             "Number of entities created per day",
             ["entity_type"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.graph_relationships_daily = Counter(
             f"{ns}_graph_relationships_daily_total",
             "Number of relationships created per day",
             ["relationship_type"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.graph_growth_rate = Gauge(
-            f"{ns}_graph_growth_rate",
-            "Entities created per hour",
-            registry=self.registry
+            f"{ns}_graph_growth_rate", "Entities created per hour", registry=self.registry
         )
 
         # Business metrics - Cost efficiency
         self.cost_efficiency_entities_per_dollar = Gauge(
             f"{ns}_cost_efficiency_entities_per_dollar",
             "Number of entities created per dollar spent",
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.cost_efficiency_sessions_per_dollar = Gauge(
             f"{ns}_cost_efficiency_sessions_per_dollar",
             "Number of sessions processed per dollar spent",
-            registry=self.registry
+            registry=self.registry,
         )
 
         # Business metrics - Feature usage
@@ -244,26 +239,22 @@ class AtlasMetrics:
             f"{ns}_endpoint_usage_total",
             "Total requests per API endpoint",
             ["endpoint", "method"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.query_types_total = Counter(
             f"{ns}_query_types_total",
             "Total queries by type",
             ["query_type"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.rag_queries_total = Counter(
-            f"{ns}_rag_queries_total",
-            "Total RAG queries executed",
-            registry=self.registry
+            f"{ns}_rag_queries_total", "Total RAG queries executed", registry=self.registry
         )
 
         self.hybrid_searches_total = Counter(
-            f"{ns}_hybrid_searches_total",
-            "Total hybrid searches executed",
-            registry=self.registry
+            f"{ns}_hybrid_searches_total", "Total hybrid searches executed", registry=self.registry
         )
 
         # System metrics
@@ -271,39 +262,33 @@ class AtlasMetrics:
             f"{ns}_system_memory_bytes",
             "System memory usage in bytes",
             ["type"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.system_cpu_percent = Gauge(
-            f"{ns}_system_cpu_percent",
-            "System CPU usage percentage",
-            registry=self.registry
+            f"{ns}_system_cpu_percent", "System CPU usage percentage", registry=self.registry
         )
 
         self.system_disk_bytes = Gauge(
             f"{ns}_system_disk_bytes",
             "System disk usage in bytes",
             ["type", "mount_point"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.process_uptime_seconds = Gauge(
-            f"{ns}_process_uptime_seconds",
-            "Process uptime in seconds",
-            registry=self.registry
+            f"{ns}_process_uptime_seconds", "Process uptime in seconds", registry=self.registry
         )
 
         # Application metrics
         self.app_sessions_active = Gauge(
-            f"{ns}_sessions_active",
-            "Number of currently active sessions",
-            registry=self.registry
+            f"{ns}_sessions_active", "Number of currently active sessions", registry=self.registry
         )
 
         self.app_sessions_queue_size = Gauge(
             f"{ns}_sessions_queue_size",
             "Number of sessions waiting to be processed",
-            registry=self.registry
+            registry=self.registry,
         )
 
     def start_collection(self) -> None:
@@ -314,32 +299,24 @@ class AtlasMetrics:
 
         try:
             # Start HTTP server for Prometheus scraping
-            start_http_server(
-                self.config.port,
-                addr=self.config.host,
-                registry=self.registry
-            )
+            start_http_server(self.config.port, addr=self.config.host, registry=self.registry)
             logger.info(
                 "Metrics HTTP server started",
                 host=self.config.host,
                 port=self.config.port,
-                metrics_path=self.config.metrics_path
+                metrics_path=self.config.metrics_path,
             )
 
             # Start system metrics collection thread
             self._system_metrics_thread = threading.Thread(
-                target=self._collect_system_metrics,
-                daemon=True,
-                name="system-metrics"
+                target=self._collect_system_metrics, daemon=True, name="system-metrics"
             )
             self._system_metrics_thread.start()
             logger.info("System metrics collection started")
 
         except Exception as exc:
             logger.error(
-                "Failed to start metrics collection",
-                error=str(exc),
-                error_type=type(exc).__name__
+                "Failed to start metrics collection", error=str(exc), error_type=type(exc).__name__
             )
 
     def stop_collection(self) -> None:
@@ -368,16 +345,13 @@ class AtlasMetrics:
                     try:
                         disk = psutil.disk_usage(partition.mountpoint)
                         self.system_disk_bytes.labels(
-                            type="used",
-                            mount_point=partition.mountpoint
+                            type="used", mount_point=partition.mountpoint
                         ).set(disk.used)
                         self.system_disk_bytes.labels(
-                            type="free",
-                            mount_point=partition.mountpoint
+                            type="free", mount_point=partition.mountpoint
                         ).set(disk.free)
                         self.system_disk_bytes.labels(
-                            type="total",
-                            mount_point=partition.mountpoint
+                            type="total", mount_point=partition.mountpoint
                         ).set(disk.total)
                     except (OSError, PermissionError):
                         # Skip inaccessible partitions
@@ -389,9 +363,7 @@ class AtlasMetrics:
 
             except Exception as exc:
                 logger.warning(
-                    "Error collecting system metrics",
-                    error=str(exc),
-                    error_type=type(exc).__name__
+                    "Error collecting system metrics", error=str(exc), error_type=type(exc).__name__
                 )
 
             # Wait for next collection or stop event
@@ -452,10 +424,7 @@ class AtlasMetrics:
     def record_extraction_request(self, method: str, model: str | None = None) -> None:
         """Record an extraction request."""
         if self.config.enabled:
-            self.extraction_requests_total.labels(
-                method=method,
-                model=model or "unknown"
-            ).inc()
+            self.extraction_requests_total.labels(method=method, model=model or "unknown").inc()
 
     @contextmanager
     def time_extraction(self, method: str):
@@ -529,7 +498,7 @@ def init_metrics(settings: AtlasSettings) -> AtlasMetrics:
         health_path=settings.health_path,
         status_path=settings.status_path,
         collection_interval=settings.metrics_collection_interval,
-        namespace=settings.prometheus_namespace
+        namespace=settings.prometheus_namespace,
     )
 
     metrics = AtlasMetrics.get_instance(config)

@@ -144,18 +144,14 @@ class TestAuthentication:
 
     def test_auth_with_invalid_key(self, auth_client):
         """Test endpoints return 401 with invalid key."""
-        response = auth_client.get(
-            "/api/v1/sessions",
-            headers={"X-API-Key": "invalid-key"}
-        )
+        response = auth_client.get("/api/v1/sessions", headers={"X-API-Key": "invalid-key"})
         assert response.status_code == 401
         assert "Invalid API key" in response.json()["detail"]
 
     def test_auth_with_valid_key(self, auth_client):
         """Test endpoints work with valid API key."""
         response = auth_client.get(
-            "/api/v1/sessions",
-            headers={"X-API-Key": "test-admin-key-12345"}
+            "/api/v1/sessions", headers={"X-API-Key": "test-admin-key-12345"}
         )
         assert response.status_code == 200
 
@@ -166,8 +162,7 @@ class TestSessionDiscovery:
     def test_discover_sessions_empty(self, client, tmp_path):
         """Test discovery with no sessions."""
         response = client.post(
-            "/api/v1/sessions/discover",
-            json={"root_path": str(tmp_path), "limit": 10}
+            "/api/v1/sessions/discover", json={"root_path": str(tmp_path), "limit": 10}
         )
         assert response.status_code == 200
 
@@ -181,8 +176,7 @@ class TestSessionDiscovery:
         root_path = sample_session_file.parent.parent
 
         response = client.post(
-            "/api/v1/sessions/discover",
-            json={"root_path": str(root_path), "limit": 10}
+            "/api/v1/sessions/discover", json={"root_path": str(root_path), "limit": 10}
         )
         assert response.status_code == 200
 
@@ -201,8 +195,7 @@ class TestSessionDiscovery:
     def test_discover_sessions_invalid_path(self, client):
         """Test discovery with non-existent path."""
         response = client.post(
-            "/api/v1/sessions/discover",
-            json={"root_path": "/nonexistent/path/12345"}
+            "/api/v1/sessions/discover", json={"root_path": "/nonexistent/path/12345"}
         )
         assert response.status_code == 404
         assert "does not exist" in response.json()["detail"]
@@ -217,8 +210,8 @@ class TestSessionDiscovery:
                 "root_path": str(root_path),
                 "min_size_bytes": 1,
                 "max_size_bytes": 1000000,
-                "limit": 5
-            }
+                "limit": 5,
+            },
         )
         assert response.status_code == 200
         data = response.json()
@@ -232,11 +225,7 @@ class TestSessionProcessing:
         """Test processing creates a job."""
         response = client.post(
             "/api/v1/sessions/process",
-            json={
-                "session_paths": [str(sample_session_file)],
-                "use_llm": False,
-                "dry_run": True
-            }
+            json={"session_paths": [str(sample_session_file)], "use_llm": False, "dry_run": True},
         )
         assert response.status_code == 202
 
@@ -251,11 +240,7 @@ class TestSessionProcessing:
         """Test processing with invalid paths."""
         response = client.post(
             "/api/v1/sessions/process",
-            json={
-                "session_paths": ["/nonexistent/file.jsonl"],
-                "use_llm": False,
-                "dry_run": True
-            }
+            json={"session_paths": ["/nonexistent/file.jsonl"], "use_llm": False, "dry_run": True},
         )
         assert response.status_code == 400
         assert "No valid session files" in response.json()["detail"]
@@ -265,11 +250,7 @@ class TestSessionProcessing:
         # Create a job first
         create_response = client.post(
             "/api/v1/sessions/process",
-            json={
-                "session_paths": [str(sample_session_file)],
-                "use_llm": False,
-                "dry_run": True
-            }
+            json={"session_paths": [str(sample_session_file)], "use_llm": False, "dry_run": True},
         )
         job_id = create_response.json()["job"]["job_id"]
 
@@ -291,11 +272,7 @@ class TestSessionProcessing:
         # Create a job first
         client.post(
             "/api/v1/sessions/process",
-            json={
-                "session_paths": [str(sample_session_file)],
-                "use_llm": False,
-                "dry_run": True
-            }
+            json={"session_paths": [str(sample_session_file)], "use_llm": False, "dry_run": True},
         )
 
         response = client.get("/api/v1/sessions")
@@ -420,7 +397,7 @@ class TestGraphEntities:
 
     def test_list_entities_empty(self, client, mock_graph):
         """Test listing entities when graph is empty."""
-        with patch('code_atlas.api.dependencies.get_graph_populator', return_value=mock_graph):
+        with patch("code_atlas.api.dependencies.get_graph_populator", return_value=mock_graph):
             response = client.get("/api/v1/graph/entities")
             # May return 500 if DB not available, which is expected
             assert response.status_code in [200, 500]
@@ -472,27 +449,18 @@ class TestGraphQuery:
 
     def test_query_read_only(self, client):
         """Test that only read queries are allowed."""
-        response = client.post(
-            "/api/v1/graph/query",
-            json={"query": "CREATE (n:Test) RETURN n"}
-        )
+        response = client.post("/api/v1/graph/query", json={"query": "CREATE (n:Test) RETURN n"})
         assert response.status_code == 403
         assert "read queries" in response.json()["detail"].lower()
 
     def test_query_delete_blocked(self, client):
         """Test that DELETE queries are blocked."""
-        response = client.post(
-            "/api/v1/graph/query",
-            json={"query": "MATCH (n) DELETE n"}
-        )
+        response = client.post("/api/v1/graph/query", json={"query": "MATCH (n) DELETE n"})
         assert response.status_code == 403
 
     def test_query_valid_match(self, client):
         """Test valid MATCH query."""
-        response = client.post(
-            "/api/v1/graph/query",
-            json={"query": "MATCH (n) RETURN n LIMIT 10"}
-        )
+        response = client.post("/api/v1/graph/query", json={"query": "MATCH (n) RETURN n LIMIT 10"})
         # May fail if DB not available
         assert response.status_code in [200, 400, 500]
 
@@ -503,8 +471,8 @@ class TestGraphQuery:
             json={
                 "query": "MATCH (n) WHERE n.name = $name RETURN n",
                 "parameters": {"name": "test"},
-                "limit": 5
-            }
+                "limit": 5,
+            },
         )
         assert response.status_code in [200, 400, 500]
 
@@ -567,7 +535,7 @@ class TestErrorHandling:
         response = client.post(
             "/api/v1/sessions/discover",
             content="not valid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 422
 
@@ -575,23 +543,20 @@ class TestErrorHandling:
         """Test handling of missing required fields."""
         response = client.post(
             "/api/v1/sessions/process",
-            json={"use_llm": False}  # Missing session_paths
+            json={"use_llm": False},  # Missing session_paths
         )
         assert response.status_code == 422
 
     def test_invalid_field_type(self, client):
         """Test handling of invalid field types."""
-        response = client.post(
-            "/api/v1/sessions/discover",
-            json={"limit": "not a number"}
-        )
+        response = client.post("/api/v1/sessions/discover", json={"limit": "not a number"})
         assert response.status_code == 422
 
     def test_value_out_of_range(self, client):
         """Test handling of values out of range."""
         response = client.post(
             "/api/v1/sessions/discover",
-            json={"limit": 10000}  # Max is 1000
+            json={"limit": 10000},  # Max is 1000
         )
         assert response.status_code == 422
 
@@ -678,9 +643,7 @@ class TestCORS:
             },
         )
         assert response.status_code == 200
-        assert (
-            response.headers.get("access-control-allow-origin") == "https://app.codeswiftr.com"
-        )
+        assert response.headers.get("access-control-allow-origin") == "https://app.codeswiftr.com"
 
     def test_prod_cors_rejects_localhost(self, prod_client):
         """Production CORS does NOT allow localhost origins."""
